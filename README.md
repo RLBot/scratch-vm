@@ -1,3 +1,15 @@
+## RLBot Stuff
+
+### Development Environment
+
+1. Be on Linux
+1. Make sure you have the latest version of nodejs installed.
+1. Run `npm install`. This should put some files in the dist directory.
+1. Run `npm run build` every time you change something.
+
+The top level package is scratch-gui, go look at its README for a more complete description of
+the development cycle.
+
 ## scratch-vm
 #### Scratch VM is a library for representing, running, and maintaining the state of computer programs written using [Scratch Blocks](https://github.com/LLK/scratch-blocks).
 

@@ -57,7 +57,7 @@
     "pngjs": "^3.3.2",
     "promise": "8.0.1",
     "scratch-audio": "latest",
-    "scratch-blocks": "latest",
+    "scratch-blocks": "file:../scratch-blocks",
     "scratch-parser": "^4.1.0",
     "scratch-render": "latest",
     "scratch-storage": "^0.4.0",
