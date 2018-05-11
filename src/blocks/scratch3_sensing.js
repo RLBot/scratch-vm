@@ -140,9 +140,15 @@ class Scratch3SensingBlocks {
     }
 
     rlbotLocation (args, util) {
-        if (util.target) {
-            return new Vector3(1, 1, 1);
+        if (util.target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
+            if (Number.isInteger(playerNum)) {
+                return this.runtime.rlbotManager.getPlayerLocation(playerNum);
+            } else if (name === 'ball') {
+                return this.runtime.rlbotManager.getBallLocation();
+            }
         }
+        return new Vector3();
     }
 
     touchingObject (args, util) {

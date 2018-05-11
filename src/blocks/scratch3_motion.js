@@ -17,6 +17,8 @@ class Scratch3MotionBlocks {
      */
     getPrimitives () {
         return {
+            motion_setthrottle: this.setThrottle,
+            motion_setsteer: this.setSteer,
             motion_movesteps: this.moveSteps,
             motion_gotoxy: this.goToXY,
             motion_goto: this.goTo,
@@ -50,6 +52,26 @@ class Scratch3MotionBlocks {
             motion_yposition: {isSpriteSpecific: true},
             motion_direction: {isSpriteSpecific: true}
         };
+    }
+
+    setThrottle (args, util) {
+        const throttle = Cast.toNumber(args.NUM);
+        if (util.target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
+            if (Number.isInteger(playerNum)) {
+                this.runtime.rlbotManager.getControllerState(playerNum).throttle = throttle;
+            }
+        }
+    }
+
+    setSteer (args, util) {
+        const steer = Cast.toNumber(args.NUM);
+        if (util.target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
+            if (Number.isInteger(playerNum)) {
+                this.runtime.rlbotManager.getControllerState(playerNum).steer = steer;
+            }
+        }
     }
 
     moveSteps (args, util) {

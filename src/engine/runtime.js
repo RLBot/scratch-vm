@@ -20,6 +20,7 @@ const Keyboard = require('../io/keyboard');
 const Mouse = require('../io/mouse');
 const MouseWheel = require('../io/mouseWheel');
 const Video = require('../io/video');
+const RLBotManager = require('../rlbot/rlbotManager');
 
 const defaultBlockPackages = {
     scratch3_control: require('../blocks/scratch3_control'),
@@ -255,6 +256,8 @@ class Runtime extends EventEmitter {
             mouseWheel: new MouseWheel(this),
             video: new Video(this)
         };
+
+        this.rlbotManager = new RLBotManager();
 
         /**
          * A runtime profiler that records timed events for later playback to
@@ -1268,6 +1271,8 @@ class Runtime extends EventEmitter {
 
         // Clean up threads that were told to stop during or since the last step
         this.threads = this.threads.filter(thread => !thread.isKilled);
+
+        this.rlbotManager.step();
 
         // Find all edge-activated hats, and add them to threads to be evaluated.
         for (const hatType in this._hats) {
