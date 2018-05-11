@@ -21,7 +21,12 @@ const ScratchBlocksConstants = {
      * ENUM for output shape: squared (any/all values; strings).
      * @const
      */
-    OUTPUT_SHAPE_SQUARE: 3
+    OUTPUT_SHAPE_SQUARE: 3,
+
+    /**
+     * ENUM for output shape: arrow (for vector3 values).
+     */
+    OUTPUT_SHAPE_ARROW: 4
 };
 
 module.exports = ScratchBlocksConstants;

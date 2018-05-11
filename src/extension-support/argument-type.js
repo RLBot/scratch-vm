@@ -26,7 +26,12 @@ const ArgumentType = {
     /**
      * String value with text field
      */
-    STRING: 'string'
+    STRING: 'string',
+
+    /**
+     * Vector3 value with arrow shaped placeholder.
+     */
+    VECTOR3: 'Vector3'
 };
 
 module.exports = ArgumentType;

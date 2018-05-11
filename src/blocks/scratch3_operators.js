@@ -16,6 +16,7 @@ class Scratch3OperatorsBlocks {
      */
     getPrimitives () {
         return {
+            operator_vec_add: this.vecAdd,
             operator_add: this.add,
             operator_subtract: this.subtract,
             operator_multiply: this.multiply,
@@ -35,6 +36,10 @@ class Scratch3OperatorsBlocks {
             operator_round: this.round,
             operator_mathop: this.mathop
         };
+    }
+
+    vecAdd (args) {
+        return Cast.toVector3(args.VEC1).plus(Cast.toVector3(args.VEC2));
     }
 
     add (args) {

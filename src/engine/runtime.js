@@ -57,6 +57,9 @@ const ArgumentTypeMap = (() => {
     map[ArgumentType.BOOLEAN] = {
         check: 'Boolean'
     };
+    map[ArgumentType.VECTOR3] = {
+        check: 'Vector3'
+    };
     return map;
 })();
 
@@ -699,6 +702,10 @@ class Runtime extends EventEmitter {
             if (!blockInfo.isTerminal) {
                 blockJSON.nextStatement = null; // null = available connection; undefined = terminal
             }
+            break;
+        case BlockType.VECTOR3:
+            blockJSON.output = 'Vector3';
+            blockJSON.outputShape = ScratchBlocksConstants.OUTPUT_SHAPE_ARROW;
             break;
         }
 

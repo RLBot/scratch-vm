@@ -1,5 +1,6 @@
 const Cast = require('../util/cast');
 const Timer = require('../util/timer');
+const Vector3 = require('../rlbot/vector3');
 
 class Scratch3SensingBlocks {
     constructor (runtime) {
@@ -50,6 +51,7 @@ class Scratch3SensingBlocks {
      */
     getPrimitives () {
         return {
+            sensing_rlbot_location: this.rlbotLocation,
             sensing_touchingobject: this.touchingObject,
             sensing_touchingcolor: this.touchingColor,
             sensing_coloristouchingcolor: this.colorTouchingColor,
@@ -135,6 +137,12 @@ class Scratch3SensingBlocks {
 
     getAnswer () {
         return this._answer;
+    }
+
+    rlbotLocation (args, util) {
+        if (util.target) {
+            return new Vector3(1, 1, 1);
+        }
     }
 
     touchingObject (args, util) {

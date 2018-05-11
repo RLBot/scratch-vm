@@ -1,4 +1,5 @@
 const Color = require('../util/color');
+const Vector3 = require('../rlbot/vector3');
 
 /**
  * @fileoverview
@@ -27,6 +28,13 @@ class Cast {
             return 0;
         }
         return n;
+    }
+
+    static toVector3 (value) {
+        if (value instanceof Vector3) {
+            return value;
+        }
+        return new Vector3();
     }
 
     /**

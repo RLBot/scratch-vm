@@ -39,7 +39,12 @@ const BlockType = {
     /**
      * General reporter with numeric or string value
      */
-    REPORTER: 'reporter'
+    REPORTER: 'reporter',
+
+    /**
+     * (x, y, z) vector for RLBot support
+     */
+    VECTOR3: 'vector3'
 };
 
 module.exports = BlockType;

@@ -947,6 +947,11 @@ const specMap = {
             }
         ]
     },
+    'rlbotLocation': {
+        opcode: 'sensing_rlbot_location',
+        argMap: [
+        ]
+    },
     'touching:': {
         opcode: 'sensing_touchingobject',
         argMap: [
@@ -1138,6 +1143,19 @@ const specMap = {
                 type: 'input',
                 inputOp: 'math_number',
                 inputName: 'NUM2'
+            }
+        ]
+    },
+    'vecAdd': {
+        opcode: 'operator_vec_add',
+        argMap: [
+            {
+                type: 'input',
+                inputName: 'VEC1'
+            },
+            {
+                type: 'input',
+                inputName: 'VEC2'
             }
         ]
     },
