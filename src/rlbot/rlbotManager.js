@@ -2,13 +2,21 @@ const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
 
 class RLBotManager {
-    constructor () {
+    constructor (runtime) {
+        this.runtime = runtime;
         this.ws = null;
         this._controllerStates = {};
         this._gameState = null;
-        this.state = null;
+        this.playerTargets = [];
+        this.ballTarget = null;
 
         this.connect();
+    }
+
+    reset () {
+        this.ballTarget = null;
+        this.playerTargets = [];
+        this._controllerStates = {};
     }
 
     connect () {
@@ -17,12 +25,26 @@ class RLBotManager {
 
         this.ws = new WebSocket('ws://localhost:42008');
 
-        this.ws.onopen = function () {
-            self.state = 'open'; // Dummy statement so I can set a breakpoing
-        };
-
         this.ws.onmessage = function (evt) {
             self._gameState = JSON.parse(evt.data);
+
+            self.ensureCarTargetsExist(self);
+            self.ensureBallTargetExists(self);
+
+            if (self.ballTarget) {
+                const location = self.convertVec(self._gameState.ball.location);
+                self.ballTarget.setXY(location.x, location.y, false);
+            }
+
+            for (let i = 0; i < self.playerTargets.length; i++) {
+                if (self.playerTargets[i]) {
+                    const player = self._gameState.players[i];
+                    const location = self.convertVec(player.location);
+                    self.playerTargets[i].setXY(location.x, location.y, false);
+
+                    self.playerTargets[i].setDirection(self.convertYaw(player.rotation.yaw));
+                }
+            }
         };
 
         this.ws.onclose = function () {
@@ -34,6 +56,29 @@ class RLBotManager {
         this.ws.onerror = function () {
             self.ws.close();
         };
+    }
+
+    ensureBallTargetExists () {
+        if (this._gameState.ball && !this.ballTarget) {
+            for (let i = 0; i < this.runtime.targets.length; i++) {
+                const target = this.runtime.targets[i];
+                if (target.sprite.name === 'ball') {
+                    this.ballTarget = target;
+                }
+            }
+        }
+    }
+
+    ensureCarTargetsExist () {
+        if (this._gameState.players.length > this.playerTargets.length) {
+            for (let i = 0; i < this.runtime.targets.length; i++) {
+                const target = this.runtime.targets[i];
+                const num = this.extractPlayerNum(target.sprite);
+                if (Number.isInteger(num) && !this.playerTargets[num]) {
+                    this.playerTargets[num] = target;
+                }
+            }
+        }
     }
 
     step () {
@@ -71,8 +116,13 @@ class RLBotManager {
     }
 
     convertVec (v3Dict) {
-        // Divide by 10 to get friendlier numbers.
-        return new Vector3(v3Dict.x / 10, v3Dict.y / 10, v3Dict.z / 10);
+        // Divide by 10 to get friendlier numbers. Invert x for sanity.
+        return new Vector3(-v3Dict.x / 30, v3Dict.y / 30, v3Dict.z / 30);
+    }
+
+    // Takes in radians and gives out degrees
+    convertYaw (yaw) {
+        return yaw * 180 / Math.PI;
     }
 
     extractPlayerNum (sprite) {

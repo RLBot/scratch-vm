@@ -1,20 +1,20 @@
 class Vector3 {
     constructor (x = 0, y = 0, z = 0) {
-        this._x = x;
-        this._y = y;
-        this._z = z;
+        this.x = x;
+        this.y = y;
+        this.z = z;
     }
 
     plus (other) {
-        return new Vector3(this._x + other._x, this._y + other._y, this._z + other._z);
+        return new Vector3(this.x + other.x, this.y + other.y, this.z + other.z);
     }
 
     minus (other) {
-        return new Vector3(this._x - other._x, this._y - other._y, this._z - other._z);
+        return new Vector3(this.x - other.x, this.y - other.y, this.z - other.z);
     }
 
     toString () {
-        return `(${this._x.toFixed()}, ${this._y.toFixed()}, ${this._z.toFixed()})`;
+        return `(${this.x.toFixed()}, ${this.y.toFixed()}, ${this.z.toFixed()})`;
     }
 }
 

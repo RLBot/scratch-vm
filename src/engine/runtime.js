@@ -257,7 +257,7 @@ class Runtime extends EventEmitter {
             video: new Video(this)
         };
 
-        this.rlbotManager = new RLBotManager();
+        this.rlbotManager = new RLBotManager(this);
 
         /**
          * A runtime profiler that records timed events for later playback to
@@ -1186,6 +1186,7 @@ class Runtime extends EventEmitter {
     dispose () {
         this.stopAll();
         this.targets.map(this.disposeTarget, this);
+        this.rlbotManager.reset();
     }
 
     /**
