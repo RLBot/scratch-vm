@@ -19,6 +19,12 @@ class Scratch3MotionBlocks {
         return {
             motion_setthrottle: this.setThrottle,
             motion_setsteer: this.setSteer,
+            motion_setpitch: this.setPitch,
+            motion_setyaw: this.setYaw,
+            motion_setroll: this.setRoll,
+            motion_setjump: this.setJump,
+            motion_setboost: this.setBoost,
+            motion_sethandbrake: this.setHandbrake,
             motion_movesteps: this.moveSteps,
             motion_gotoxy: this.goToXY,
             motion_goto: this.goTo,
@@ -54,24 +60,56 @@ class Scratch3MotionBlocks {
         };
     }
 
-    setThrottle (args, util) {
-        const throttle = Cast.toNumber(args.NUM);
+    setControllerFloat (args, util, propertyName) {
+        const val = Cast.toNumber(args.NUM);
         if (util.target.sprite) {
             const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
             if (Number.isInteger(playerNum)) {
-                this.runtime.rlbotManager.getControllerState(playerNum).throttle = throttle;
+                this.runtime.rlbotManager.getControllerState(playerNum)[propertyName] = val;
             }
         }
     }
 
+    setThrottle (args, util) {
+        this.setControllerFloat(args, util, 'throttle');
+    }
+
     setSteer (args, util) {
-        const steer = Cast.toNumber(args.NUM);
+        this.setControllerFloat(args, util, 'steer');
+    }
+
+    setPitch (args, util) {
+        this.setControllerFloat(args, util, 'pitch');
+    }
+
+    setYaw (args, util) {
+        this.setControllerFloat(args, util, 'yaw');
+    }
+
+    setRoll (args, util) {
+        this.setControllerFloat(args, util, 'roll');
+    }
+
+    setControllerBoolean (args, util, propertyName) {
+        const val = Cast.toBoolean(args.BIT);
         if (util.target.sprite) {
             const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
             if (Number.isInteger(playerNum)) {
-                this.runtime.rlbotManager.getControllerState(playerNum).steer = steer;
+                this.runtime.rlbotManager.getControllerState(playerNum)[propertyName] = val;
             }
         }
+    }
+
+    setJump (args, util) {
+        this.setControllerBoolean(args, util, 'jump');
+    }
+
+    setBoost (args, util) {
+        this.setControllerBoolean(args, util, 'boost');
+    }
+
+    setHandbrake (args, util) {
+        this.setControllerBoolean(args, util, 'handbrake');
     }
 
     moveSteps (args, util) {

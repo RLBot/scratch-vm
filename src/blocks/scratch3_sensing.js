@@ -52,6 +52,9 @@ class Scratch3SensingBlocks {
     getPrimitives () {
         return {
             sensing_rlbot_location: this.rlbotLocation,
+            sensing_rlbot_velocity: this.rlbotVelocity,
+            sensing_rlbot_degreesto: this.rlbotDegreesTo,
+            sensing_vectorof: this.getVectorAttributeOf,
             sensing_touchingobject: this.touchingObject,
             sensing_touchingcolor: this.touchingColor,
             sensing_coloristouchingcolor: this.colorTouchingColor,
@@ -140,15 +143,63 @@ class Scratch3SensingBlocks {
     }
 
     rlbotLocation (args, util) {
-        if (util.target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
+        return this.rlbotLocationOfTarget(util.target);
+    }
+
+    rlbotLocationOfTarget (target) {
+        if (target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(target.sprite);
             if (Number.isInteger(playerNum)) {
                 return this.runtime.rlbotManager.getPlayerLocation(playerNum);
-            } else if (name === 'ball') {
+            } else if (target.sprite.name === 'ball') {
                 return this.runtime.rlbotManager.getBallLocation();
             }
         }
         return new Vector3();
+    }
+
+    rlbotVelocity (args, util) {
+        return this.rlbotVelocityOfTarget(util.target);
+    }
+
+    rlbotVelocityOfTarget (target) {
+        if (target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(target.sprite);
+            if (Number.isInteger(playerNum)) {
+                return this.runtime.rlbotManager.getPlayerVelocity(playerNum);
+            } else if (target.sprite.name === 'ball') {
+                return this.runtime.rlbotManager.getBallVelocity();
+            }
+        }
+        return new Vector3();
+    }
+
+    rlbotDegreesTo (args, util) {
+        if (util.target.sprite) {
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
+            if (Number.isInteger(playerNum)) {
+                const target = Cast.toVector3(args.VEC);
+                const location = this.runtime.rlbotManager.getPlayerLocation(playerNum);
+                const toTarget = target.minus(location);
+                const carYaw = this.runtime.rlbotManager.getPlayerYawRadians(playerNum);
+                const idealRadians = this.runtime.rlbotManager.atanRadiansToRlbotRadians(Math.atan2(toTarget.y, toTarget.x));
+
+                let correction = idealRadians - carYaw;
+
+                // Make sure we go the 'short way'
+                if (Math.abs(correction) > Math.PI) {
+                    if (correction < 0) {
+                        correction += 2 * Math.PI;
+                    } else {
+                        correction -= 2 * Math.PI;
+                    }
+                }
+
+                // convert to degrees. No offset required because this is a relative angle.
+                return correction * 180 / Math.PI; 
+            }
+        }
+        return 0;
     }
 
     touchingObject (args, util) {
@@ -267,6 +318,21 @@ class Scratch3SensingBlocks {
 
     isLoud () {
         return this.getLoudness() > 10;
+    }
+
+    getVectorAttributeOf (args) {
+        const attrTarget = this.runtime.getSpriteTargetByName(args.OBJECT);
+        
+        // attrTarget can be undefined if the target does not exist
+        // (e.g. single sprite uploaded from larger project referencing
+        // another sprite that wasn't uploaded)
+        if (!attrTarget || attrTarget.isStage) return new Vector3();
+        
+        switch (args.PROPERTY) {
+            case 'rlbot location': return this.rlbotLocationOfTarget(attrTarget);
+            case 'rlbot velocity': return this.rlbotVelocityOfTarget(attrTarget);
+        }
+        return new Vector3();
     }
 
     getAttributeOf (args) {

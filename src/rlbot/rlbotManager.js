@@ -9,6 +9,8 @@ class RLBotManager {
         this._gameState = null;
         this.playerTargets = [];
         this.ballTarget = null;
+        this.hasFreshState = false;
+        this.lastDataTime = Date.now();
 
         this.connect();
     }
@@ -42,10 +44,17 @@ class RLBotManager {
                     const location = self.convertVec(player.location);
                     self.playerTargets[i].setXY(location.x, location.y, false);
 
-                    self.playerTargets[i].setDirection(self.convertYaw(player.rotation.yaw));
+                    self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw));
                 }
             }
+
+            self.hasFreshState = true;
+            self.lastDataTime = Date.now();
         };
+
+        this.ws.onopen = function () {
+            self.hasFreshState = true;
+        }
 
         this.ws.onclose = function () {
             setTimeout(() => {
@@ -82,9 +91,11 @@ class RLBotManager {
     }
 
     step () {
-        if (this.ws.readyState === WebSocket.OPEN) {
+        const readyToCall = this.hasFreshState || Date.now() - this.lastDataTime > 1000;
+        if (this.ws.readyState === WebSocket.OPEN && readyToCall) {
             const controllerJson = JSON.stringify(this._controllerStates);
             this.ws.send(controllerJson);
+            this.hasFreshState = false;
         }
     }
 
@@ -115,14 +126,38 @@ class RLBotManager {
         return new Vector3();
     }
 
+    getPlayerVelocity (index) {
+        if (this._gameState.players && this._gameState.players[index]) {
+            const v3Dict = this._gameState.players[index].velocity;
+            return this.convertVec(v3Dict);
+        }
+        return new Vector3();
+    }
+
+    getBallVelocity () {
+        if (this._gameState.ball) {
+            const v3Dict = this._gameState.ball.velocity;
+            return this.convertVec(v3Dict);
+        }
+        return new Vector3();
+    }
+
     convertVec (v3Dict) {
         // Divide by 10 to get friendlier numbers. Invert x for sanity.
         return new Vector3(-v3Dict.x / 30, v3Dict.y / 30, v3Dict.z / 30);
     }
 
-    // Takes in radians and gives out degrees
-    convertYaw (yaw) {
-        return yaw * 180 / Math.PI;
+    atanRadiansToRlbotRadians(atanRads) {
+        // The rotation and axes in RLBot are goofed up. 
+        // We flipped the x-axis to help out a little, and now we're dealing with
+        // the consequences for rotation. At this point, the RLBot rotation has 
+        // PI in the +x direction and PI/2 in the +y direction.
+        return Math.PI - atanRads;
+    }
+
+    rlbotRadiansToScratchDegrees(rlbotRads) {
+        // Scratch degrees have 90 in the +x direction and 0 in the +y direction.
+        return rlbotRads * 180 / Math.PI - 90;
     }
 
     extractPlayerNum (sprite) {
@@ -133,6 +168,12 @@ class RLBotManager {
         return null;
     }
 
+    getPlayerYawRadians (index) {
+        if (this._gameState.players && this._gameState.players[index]) {
+            return this._gameState.players[index].rotation.yaw;
+        }
+        return 0;
+    }
 }
 
 module.exports = RLBotManager;
