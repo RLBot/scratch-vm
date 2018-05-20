@@ -1,5 +1,6 @@
 const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
+const AXIS_SCALE = 32;
 
 class RLBotManager {
     constructor (runtime) {
@@ -9,7 +10,6 @@ class RLBotManager {
         this._gameState = null;
         this.playerTargets = [];
         this.ballTarget = null;
-        this.hasFreshState = false;
         this.lastDataTime = Date.now();
 
         this.connect();
@@ -41,19 +41,23 @@ class RLBotManager {
             for (let i = 0; i < self.playerTargets.length; i++) {
                 if (self.playerTargets[i]) {
                     const player = self._gameState.players[i];
-                    const location = self.convertVec(player.location);
-                    self.playerTargets[i].setXY(location.x, location.y, false);
+                    if (player) {
+                        const location = self.convertVec(player.location);
+                        self.playerTargets[i].setXY(location.x, location.y, false);
 
-                    self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw));
+                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw));
+                    }
                 }
             }
 
-            self.hasFreshState = true;
             self.lastDataTime = Date.now();
+
+            self.runtime.startHats('event_whenbroadcastreceived', {
+                BROADCAST_OPTION: 'New RLBot Data'
+            });
         };
 
         this.ws.onopen = function () {
-            self.hasFreshState = true;
         }
 
         this.ws.onclose = function () {
@@ -91,11 +95,9 @@ class RLBotManager {
     }
 
     step () {
-        const readyToCall = this.hasFreshState || Date.now() - this.lastDataTime > 1000;
-        if (this.ws.readyState === WebSocket.OPEN && readyToCall) {
+        if (this.ws.readyState === WebSocket.OPEN) {
             const controllerJson = JSON.stringify(this._controllerStates);
             this.ws.send(controllerJson);
-            this.hasFreshState = false;
         }
     }
 
@@ -144,7 +146,7 @@ class RLBotManager {
 
     convertVec (v3Dict) {
         // Divide by 10 to get friendlier numbers. Invert x for sanity.
-        return new Vector3(-v3Dict.x / 30, v3Dict.y / 30, v3Dict.z / 30);
+        return new Vector3(-v3Dict.x / AXIS_SCALE, v3Dict.y / AXIS_SCALE, v3Dict.z / AXIS_SCALE);
     }
 
     atanRadiansToRlbotRadians(atanRads) {
