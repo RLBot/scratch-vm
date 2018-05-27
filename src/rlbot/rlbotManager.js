@@ -11,6 +11,7 @@ class RLBotManager {
         this.playerTargets = [];
         this.ballTarget = null;
         this.lastDataTime = Date.now();
+        this.hasDirtyControllerState = false;
 
         this.connect();
     }
@@ -98,6 +99,7 @@ class RLBotManager {
         if (this.ws.readyState === WebSocket.OPEN) {
             const controllerJson = JSON.stringify(this._controllerStates);
             this.ws.send(controllerJson);
+            this.hasDirtyControllerState = false;
         }
     }
 
@@ -105,6 +107,8 @@ class RLBotManager {
         if (!this._controllerStates[playerIndex]) {
             this._controllerStates[playerIndex] = new ControllerState();
         }
+        // Generally getControllerState is only called with the intent of modifying it.
+        this.hasDirtyControllerState = true; 
         return this._controllerStates[playerIndex];
     }
 

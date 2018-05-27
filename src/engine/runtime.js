@@ -258,6 +258,7 @@ class Runtime extends EventEmitter {
         };
 
         this.rlbotManager = new RLBotManager(this);
+        this.rlbotStepRequested = false;
 
         /**
          * A runtime profiler that records timed events for later playback to
@@ -1274,6 +1275,7 @@ class Runtime extends EventEmitter {
         this.threads = this.threads.filter(thread => !thread.isKilled);
 
         this.rlbotManager.step();
+        this.rlbotStepRequested = false;
 
         // Find all edge-activated hats, and add them to threads to be evaluated.
         for (const hatType in this._hats) {
@@ -1660,6 +1662,14 @@ class Runtime extends EventEmitter {
      */
     requestRedraw () {
         this.redrawRequested = true;
+    }
+
+    /**
+     * Tell the runtime that the rlbotManager should be stepped ASAP, probably because
+     * we have reached some stopping point after dirtying the controller states.
+     */
+    requestRlbotStep () {
+        this.rlbotStepRequested = true;
     }
 
     /**

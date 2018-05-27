@@ -82,7 +82,7 @@ class Sequencer {
         while (this.runtime.threads.length > 0 &&
                numActiveThreads > 0 &&
                this.timer.timeElapsed() < WORK_TIME &&
-               (this.runtime.turboMode || !this.runtime.redrawRequested)) {
+               (this.runtime.turboMode || (!this.runtime.redrawRequested && !this.runtime.rlbotStepRequested))) {
             if (this.runtime.profiler !== null) {
                 if (stepThreadsInnerProfilerId === -1) {
                     stepThreadsInnerProfilerId = this.runtime.profiler.idByName(stepThreadsInnerProfilerFrame);
@@ -248,6 +248,11 @@ class Sequencer {
                         thread.warpTimer.timeElapsed() > Sequencer.WARP_TIME) {
                         // Don't do anything to the stack, since loops need
                         // to be re-executed.
+                        if (this.runtime.rlbotManager.hasDirtyControllerState) {
+                            // Step the rlbotManager at the end of loops to make sure we get a snapshot
+                            // of the controller state at that point.
+                            this.runtime.requestRlbotStep();
+                        }
                         return;
                     }
                     // Don't go to the next block for this level of the stack,
