@@ -1159,6 +1159,51 @@ const specMap = {
             }
         ]
     },
+    'vecSub': {
+        opcode: 'operator_vec_subtract',
+        argMap: [
+            {
+                type: 'input',
+                inputName: 'VEC1'
+            },
+            {
+                type: 'input',
+                inputName: 'VEC2'
+            }
+        ]
+    },
+    'vecMag': {
+        opcode: 'operator_vec_magnitude',
+        argMap: [
+            {
+                type: 'input',
+                inputName: 'VEC'
+            }
+        ]
+    },
+    'vecNormalized': {
+        opcode: 'operator_vec_normalized',
+        argMap: [
+            {
+                type: 'input',
+                inputName: 'VEC'
+            }
+        ]
+    },
+    'vecScaled': {
+        opcode: 'operator_vec_scaled',
+        argMap: [
+            {
+                type: 'input',
+                inputName: 'VEC'
+            },
+            {
+                type: 'input',
+                inputOp: 'math_number',
+                inputName: 'NUM'
+            }
+        ]
+    },
     '-': {
         opcode: 'operator_subtract',
         argMap: [

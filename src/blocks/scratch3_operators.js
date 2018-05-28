@@ -1,5 +1,6 @@
 const Cast = require('../util/cast.js');
 const MathUtil = require('../util/math-util.js');
+const Vector3 = require('../rlbot/vector3');
 
 class Scratch3OperatorsBlocks {
     constructor (runtime) {
@@ -17,6 +18,14 @@ class Scratch3OperatorsBlocks {
     getPrimitives () {
         return {
             operator_vec_add: this.vecAdd,
+            operator_vec_subtract: this.vecSubtract,
+            operator_vec_magnitude: this.vecMagnitude,
+            operator_vec_normalized: this.vecNormalized,
+            operator_vec_scaled: this.vecScaled,
+            operator_vec_constructor: this.vecConstructor,
+            operator_vec_xval: this.vecX,
+            operator_vec_yval: this.vecY,
+            operator_vec_zval: this.vecZ,
             operator_add: this.add,
             operator_subtract: this.subtract,
             operator_multiply: this.multiply,
@@ -40,6 +49,42 @@ class Scratch3OperatorsBlocks {
 
     vecAdd (args) {
         return Cast.toVector3(args.VEC1).plus(Cast.toVector3(args.VEC2));
+    }
+
+    vecSubtract (args) {
+        return Cast.toVector3(args.VEC1).minus(Cast.toVector3(args.VEC2));
+    }
+
+    vecMagnitude (args) {
+        return Cast.toVector3(args.VEC).magnitude();
+    }
+
+    vecNormalized (args) {
+        return Cast.toVector3(args.VEC).normalized();
+    }
+
+    vecScaled (args) {
+        return Cast.toVector3(args.VEC).scaled(Cast.toNumber(args.NUM));
+    }
+
+    vecConstructor (args) {
+        return new Vector3(
+            Cast.toNumber(args.NUM1),
+            Cast.toNumber(args.NUM2),
+            Cast.toNumber(args.NUM3)
+        )
+    }
+
+    vecX (args) {
+        return Cast.toVector3(args.VEC).x;
+    }
+
+    vecY (args) {
+        return Cast.toVector3(args.VEC).y;
+    }
+
+    vecZ (args) {
+        return Cast.toVector3(args.VEC).z;
     }
 
     add (args) {

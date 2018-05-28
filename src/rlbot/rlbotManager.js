@@ -7,7 +7,7 @@ class RLBotManager {
         this.runtime = runtime;
         this.ws = null;
         this._controllerStates = {};
-        this._gameState = null;
+        this._gameState = {};
         this.playerTargets = [];
         this.ballTarget = null;
         this.lastDataTime = Date.now();
