@@ -1,6 +1,7 @@
 const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
 const AXIS_SCALE = 32;
+const DEFAULT_PORT = '42008';
 
 class RLBotManager {
     constructor (runtime) {
@@ -12,6 +13,8 @@ class RLBotManager {
         this.ballTarget = null;
         this.lastDataTime = Date.now();
         this.hasDirtyControllerState = false;
+        this.socketString = 'ws://localhost:' + DEFAULT_PORT;
+        this.hasConnection = false; // The UI will use this to report success to the user.
 
         this.connect();
     }
@@ -22,13 +25,27 @@ class RLBotManager {
         this._controllerStates = {};
     }
 
+    setHost (hostString) {
+        this.socketString = 'ws://' + hostString;
+        if (hostString.indexOf(':') < 0) {
+            this.socketString += ':' + DEFAULT_PORT;
+        }
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.close();
+        }
+        
+        this.connect();
+    }
+
     connect () {
 
         const self = this;
 
-        this.ws = new WebSocket('ws://localhost:42008');
+        this.ws = new WebSocket(self.socketString);
 
         this.ws.onmessage = function (evt) {
+            self.hasConnection = true;
             self._gameState = JSON.parse(evt.data);
 
             self.ensureCarTargetsExist(self);
@@ -62,6 +79,7 @@ class RLBotManager {
         }
 
         this.ws.onclose = function () {
+            self.hasConnection = false;
             setTimeout(() => {
                 self.connect();
             }, 1000);
