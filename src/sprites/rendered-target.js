@@ -70,6 +70,20 @@ class RenderedTarget extends Target {
         this.isStage = false;
 
         /**
+         * The type of RLBot entity that this rendered target is tracking. Generally this means it
+         * will have its position kept in sync with the game by rlbotManager.
+         * @type {string}
+         */
+        this.rlbotType = null;
+
+        /**
+         * The index of this object according to RLBot, e.g. if this is the 3rd car in the game,
+         * rlbotIndex would be 2.
+         * @type {Number}
+         */
+        this.rlbotIndex = -1;
+
+        /**
          * Scratch X coordinate. Currently should range from -240 to 240.
          * @type {Number}
          */
@@ -1018,6 +1032,8 @@ class RenderedTarget extends Target {
             id: this.id,
             name: this.getName(),
             isStage: this.isStage,
+            rlbotType: this.rlbotType,
+            rlbotIndex: this.rlbotIndex,
             x: this.x,
             y: this.y,
             size: this.size,

@@ -62,11 +62,8 @@ class Scratch3MotionBlocks {
 
     setControllerFloat (args, util, propertyName) {
         const val = Cast.toNumber(args.NUM);
-        if (util.target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
-            if (Number.isInteger(playerNum)) {
-                this.runtime.rlbotManager.getControllerState(playerNum)[propertyName] = val;
-            }
+        if (util.target.rlbotType === 'car') {
+            this.runtime.rlbotManager.updateControllerState(util.target.rlbotIndex, propertyName, val);
         }
     }
 
@@ -92,11 +89,8 @@ class Scratch3MotionBlocks {
 
     setControllerBoolean (args, util, propertyName) {
         const val = Cast.toBoolean(args.BIT);
-        if (util.target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
-            if (Number.isInteger(playerNum)) {
-                this.runtime.rlbotManager.getControllerState(playerNum)[propertyName] = val;
-            }
+        if (util.target.rlbotType === 'car') {
+            this.runtime.rlbotManager.updateControllerState(util.target.rlbotIndex, propertyName, val);
         }
     }
 

@@ -147,11 +147,10 @@ class Scratch3SensingBlocks {
     }
 
     rlbotLocationOfTarget (target) {
-        if (target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(target.sprite);
-            if (Number.isInteger(playerNum)) {
-                return this.runtime.rlbotManager.getPlayerLocation(playerNum);
-            } else if (target.sprite.name === 'ball') {
+        if (target.rlbotType) {
+            if (target.rlbotType === 'car') {
+                return this.runtime.rlbotManager.getPlayerLocation(target.rlbotIndex);
+            } else if (target.rlbotType === 'ball') {
                 return this.runtime.rlbotManager.getBallLocation();
             }
         }
@@ -163,11 +162,10 @@ class Scratch3SensingBlocks {
     }
 
     rlbotVelocityOfTarget (target) {
-        if (target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(target.sprite);
-            if (Number.isInteger(playerNum)) {
-                return this.runtime.rlbotManager.getPlayerVelocity(playerNum);
-            } else if (target.sprite.name === 'ball') {
+        if (target.rlbotType) {
+            if (target.rlbotType === 'car') {
+                return this.runtime.rlbotManager.getPlayerVelocity(target.rlbotIndex);
+            } else if (target.rlbotType === 'ball') {
                 return this.runtime.rlbotManager.getBallVelocity();
             }
         }
@@ -175,29 +173,27 @@ class Scratch3SensingBlocks {
     }
 
     rlbotDegreesTo (args, util) {
-        if (util.target.sprite) {
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(util.target.sprite);
-            if (Number.isInteger(playerNum)) {
-                const target = Cast.toVector3(args.VEC);
-                const location = this.runtime.rlbotManager.getPlayerLocation(playerNum);
-                const toTarget = target.minus(location);
-                const carYaw = this.runtime.rlbotManager.getPlayerYawRadians(playerNum);
-                const idealRadians = this.runtime.rlbotManager.atanRadiansToRlbotRadians(Math.atan2(toTarget.y, toTarget.x));
+        if (util.target.rlbotType === 'car') {
+            const playerNum = util.target.rlbotIndex;
+            const target = Cast.toVector3(args.VEC);
+            const location = this.runtime.rlbotManager.getPlayerLocation(playerNum);
+            const toTarget = target.minus(location);
+            const carYaw = this.runtime.rlbotManager.getPlayerYawRadians(playerNum);
+            const idealRadians = this.runtime.rlbotManager.atanRadiansToRlbotRadians(Math.atan2(toTarget.y, toTarget.x));
 
-                let correction = idealRadians - carYaw;
+            let correction = idealRadians - carYaw;
 
-                // Make sure we go the 'short way'
-                if (Math.abs(correction) > Math.PI) {
-                    if (correction < 0) {
-                        correction += 2 * Math.PI;
-                    } else {
-                        correction -= 2 * Math.PI;
-                    }
+            // Make sure we go the 'short way'
+            if (Math.abs(correction) > Math.PI) {
+                if (correction < 0) {
+                    correction += 2 * Math.PI;
+                } else {
+                    correction -= 2 * Math.PI;
                 }
-
-                // convert to degrees. No offset required because this is a relative angle.
-                return correction * 180 / Math.PI; 
             }
+
+            // convert to degrees. No offset required because this is a relative angle.
+            return correction * 180 / Math.PI;
         }
         return 0;
     }

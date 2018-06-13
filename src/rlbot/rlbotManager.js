@@ -105,8 +105,8 @@ class RLBotManager {
         if (this._gameState.players.length > this.playerTargets.length) {
             for (let i = 0; i < this.runtime.targets.length; i++) {
                 const target = this.runtime.targets[i];
-                const num = this.extractPlayerNum(target.sprite);
-                if (Number.isInteger(num) && !this.playerTargets[num]) {
+                const num = target.rlbotIndex;
+                if (target.rlbotType === 'car' && !this.playerTargets[num]) {
                     this.playerTargets[num] = target;
                 }
             }
@@ -126,8 +126,15 @@ class RLBotManager {
             this._controllerStates[playerIndex] = new ControllerState();
         }
         // Generally getControllerState is only called with the intent of modifying it.
-        this.hasDirtyControllerState = true; 
         return this._controllerStates[playerIndex];
+    }
+
+    updateControllerState (playerIndex, propertyName, value) {
+        if (!this._controllerStates[playerIndex]) {
+            this._controllerStates[playerIndex] = new ControllerState();
+        }        
+        this._controllerStates[playerIndex][propertyName] = value;
+        this.hasDirtyControllerState = true;
     }
 
     getGameState () {
@@ -184,12 +191,15 @@ class RLBotManager {
         return rlbotRads * 180 / Math.PI - 90;
     }
 
-    extractPlayerNum (sprite) {
-        const name = sprite.name;
+    extractPlayerNum (name) {
         if (name.startsWith('player-')) {
             return parseInt(name.slice('player-'.length), 10);
         }
         return null;
+    }
+
+    isBall (sprite) {
+        return sprite.name === 'ball';
     }
 
     getPlayerYawRadians (index) {

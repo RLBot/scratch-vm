@@ -392,6 +392,8 @@ const serializeVariables = function (variables) {
 const serializeTarget = function (target) {
     const obj = Object.create(null);
     obj.isStage = target.isStage;
+    obj.rlbotType = target.rlbotType;
+    obj.rlbotIndex = target.rlbotIndex;
     obj.name = obj.isStage ? 'Stage' : target.name;
     const vars = serializeVariables(target.variables);
     obj.variables = vars.variables;
@@ -856,6 +858,12 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
     }
     if (object.hasOwnProperty('isStage')) {
         target.isStage = object.isStage;
+    }
+    if (object.hasOwnProperty('rlbotType')) {
+        target.rlbotType = object.rlbotType;
+    }
+    if (object.hasOwnProperty('rlbotIndex')) {
+        target.rlbotIndex = object.rlbotIndex;
     }
     Promise.all(costumePromises).then(costumes => {
         sprite.costumes = costumes;

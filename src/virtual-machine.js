@@ -746,6 +746,15 @@ class VirtualMachine extends EventEmitter {
                     currTarget.blocks.updateAssetName(oldName, newName, 'sprite');
                 }
             }
+
+            const playerNum = this.runtime.rlbotManager.extractPlayerNum(sprite.name);
+            if (Number.isInteger(playerNum)) {
+                target.rlbotType = 'car';
+                target.rlbotIndex = playerNum;
+            }
+            if (this.runtime.rlbotManager.isBall(sprite)) {
+                target.rlbotType = 'ball';
+            }
             this.emitTargetsUpdate();
         } else {
             throw new Error('No target with the provided id.');
