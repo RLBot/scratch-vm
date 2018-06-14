@@ -22,7 +22,9 @@ class RLBotManager {
     reset () {
         this.ballTarget = null;
         this.playerTargets = [];
-        this._controllerStates = {};
+        for (let idx in this._controllerStates) {
+            this._controllerStates[idx].reset();
+        }
     }
 
     setHost (hostString) {
@@ -36,6 +38,16 @@ class RLBotManager {
         }
         
         this.connect();
+    }
+
+    filterPlayer(playerIndex, shouldSendControllerState) {
+        if (shouldSendControllerState) {
+            if (!this._controllerStates[playerIndex]) {
+                this._controllerStates[playerIndex] = new ControllerState();
+            }
+        } else {
+            delete this._controllerStates[playerIndex];
+        }
     }
 
     connect () {
@@ -121,17 +133,11 @@ class RLBotManager {
         }
     }
 
-    getControllerState (playerIndex) {
-        if (!this._controllerStates[playerIndex]) {
-            this._controllerStates[playerIndex] = new ControllerState();
-        }
-        // Generally getControllerState is only called with the intent of modifying it.
-        return this._controllerStates[playerIndex];
-    }
-
     updateControllerState (playerIndex, propertyName, value) {
         if (!this._controllerStates[playerIndex]) {
-            this._controllerStates[playerIndex] = new ControllerState();
+            // This means we're not configured to control this player index, so do nothing.
+            // See filterPlayer.
+            return; 
         }        
         this._controllerStates[playerIndex][propertyName] = value;
         this.hasDirtyControllerState = true;
