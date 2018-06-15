@@ -1,10 +1,13 @@
 const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
+const EventEmitter = require('events');
 const AXIS_SCALE = 32;
 const DEFAULT_PORT = '42008';
 
-class RLBotManager {
+class RLBotManager extends EventEmitter {
     constructor (runtime) {
+        super();
+
         this.runtime = runtime;
         this.ws = null;
         this._controllerStates = {};
@@ -141,6 +144,11 @@ class RLBotManager {
         }        
         this._controllerStates[playerIndex][propertyName] = value;
         this.hasDirtyControllerState = true;
+
+        this.emit('controllerUpdate', {
+            playerIndex: playerIndex,
+            controller: this._controllerStates[playerIndex]
+        });
     }
 
     getGameState () {
