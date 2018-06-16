@@ -256,8 +256,9 @@ class RenderedTarget extends Target {
      * @param {!number} x New X coordinate, in Scratch coordinates.
      * @param {!number} y New Y coordinate, in Scratch coordinates.
      * @param {?boolean} force Force setting X/Y, in case of dragging
+     * @param {?boolean} skipRedraw Decline to re-render the stage
      */
-    setXY (x, y, force) {
+    setXY (x, y, force, skipRedraw) {
         if (this.isStage) return;
         if (this.dragging && !force) return;
         const oldX = this.x;
@@ -270,7 +271,7 @@ class RenderedTarget extends Target {
             this.renderer.updateDrawableProperties(this.drawableID, {
                 position: position
             });
-            if (this.visible) {
+            if (this.visible && !skipRedraw) {
                 this.emit(RenderedTarget.EVENT_TARGET_VISUAL_CHANGE, this);
                 this.runtime.requestRedraw();
             }
@@ -305,8 +306,9 @@ class RenderedTarget extends Target {
     /**
      * Set the direction.
      * @param {!number} direction New direction.
+     * @param {?boolean} skipRedraw Decline to re-render the stage
      */
-    setDirection (direction) {
+    setDirection (direction, skipRedraw) {
         if (this.isStage) {
             return;
         }
@@ -321,7 +323,7 @@ class RenderedTarget extends Target {
                 direction: renderedDirectionScale.direction,
                 scale: renderedDirectionScale.scale
             });
-            if (this.visible) {
+            if (this.visible && !skipRedraw) {
                 this.emit(RenderedTarget.EVENT_TARGET_VISUAL_CHANGE, this);
                 this.runtime.requestRedraw();
             }

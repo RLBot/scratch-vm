@@ -14,7 +14,7 @@ class RLBotManager extends EventEmitter {
         this._gameState = {};
         this.playerTargets = [];
         this.ballTarget = null;
-        this.lastDataTime = Date.now();
+        this.lastPositionUpdate = Date.now();
         this.hasDirtyControllerState = false;
         this.socketString = 'ws://localhost:' + DEFAULT_PORT;
         this.hasConnection = false; // The UI will use this to report success to the user.
@@ -66,9 +66,14 @@ class RLBotManager extends EventEmitter {
             self.ensureCarTargetsExist(self);
             self.ensureBallTargetExists(self);
 
+            const skipRedraw = Date.now() - self.lastPositionUpdate < 40; // Render at 24fps
+            if (!skipRedraw) {
+                self.lastPositionUpdate = Date.now();
+            }
+
             if (self.ballTarget) {
                 const location = self.convertVec(self._gameState.ball.location);
-                self.ballTarget.setXY(location.x, location.y, false);
+                self.ballTarget.setXY(location.x, location.y, false, skipRedraw);
             }
 
             for (let i = 0; i < self.playerTargets.length; i++) {
@@ -76,14 +81,11 @@ class RLBotManager extends EventEmitter {
                     const player = self._gameState.players[i];
                     if (player) {
                         const location = self.convertVec(player.location);
-                        self.playerTargets[i].setXY(location.x, location.y, false);
-
-                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw));
+                        self.playerTargets[i].setXY(location.x, location.y, false, skipRedraw);
+                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw), skipRedraw);
                     }
                 }
             }
-
-            self.lastDataTime = Date.now();
 
             self.runtime.startHats('event_whenbroadcastreceived', {
                 BROADCAST_OPTION: 'New RLBot Data'
@@ -207,7 +209,7 @@ class RLBotManager extends EventEmitter {
 
     extractPlayerNum (name) {
         if (name.startsWith('player-')) {
-            return parseInt(name.slice('player-'.length), 10);
+            return parseInt(name.slice('player-'.length), 10) - 1;
         }
         return null;
     }
