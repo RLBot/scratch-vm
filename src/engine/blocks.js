@@ -5,6 +5,7 @@ const MonitorRecord = require('./monitor-record');
 const Clone = require('../util/clone');
 const {Map} = require('immutable');
 const BlocksExecuteCache = require('./blocks-execute-cache');
+const log = require('../util/log');
 
 /**
  * @fileoverview
@@ -246,7 +247,7 @@ class Blocks {
     // ---------------------------------------------------------------------
 
     /**
-     * Create event listener for blocks and variables. Handles validation and
+     * Create event listener for blocks, variables, and comments. Handles validation and
      * serves as a generic adapter between the blocks, variables, and the
      * runtime interface.
      * @param {object} e Blockly "block" or "variable" event
@@ -255,7 +256,8 @@ class Blocks {
     blocklyListen (e, optRuntime) {
         // Validate event
         if (typeof e !== 'object') return;
-        if (typeof e.blockId !== 'string' && typeof e.varId !== 'string') {
+        if (typeof e.blockId !== 'string' && typeof e.varId !== 'string' &&
+            typeof e.commentId !== 'string') {
             return;
         }
         const stage = optRuntime.getTargetForStage();
@@ -355,6 +357,80 @@ class Blocks {
         case 'var_delete':
             stage.deleteVariable(e.varId);
             break;
+        case 'comment_create':
+            if (optRuntime && optRuntime.getEditingTarget()) {
+                const currTarget = optRuntime.getEditingTarget();
+                currTarget.createComment(e.commentId, e.blockId, e.text,
+                    e.xy.x, e.xy.y, e.width, e.height, e.minimized);
+
+                if (currTarget.comments[e.commentId].x === null &&
+                    currTarget.comments[e.commentId].y === null) {
+                    // Block comments imported from 2.0 projects are imported with their
+                    // x and y coordinates set to null so that scratch-blocks can
+                    // auto-position them. If we are receiving a create event for these
+                    // comments, then the auto positioning should have taken place.
+                    // Update the x and y position of these comments to match the
+                    // one from the event.
+                    currTarget.comments[e.commentId].x = e.xy.x;
+                    currTarget.comments[e.commentId].y = e.xy.y;
+                }
+            }
+            break;
+        case 'comment_change':
+            if (optRuntime && optRuntime.getEditingTarget()) {
+                const currTarget = optRuntime.getEditingTarget();
+                if (!currTarget.comments.hasOwnProperty(e.commentId)) {
+                    log.warn(`Cannot change comment with id ${e.commentId} because it does not exist.`);
+                    return;
+                }
+                const comment = currTarget.comments[e.commentId];
+                const change = e.newContents_;
+                if (change.hasOwnProperty('minimized')) {
+                    comment.minimized = change.minimized;
+                }
+                if (change.hasOwnProperty('width') && change.hasOwnProperty('height')){
+                    comment.width = change.width;
+                    comment.height = change.height;
+                }
+                if (change.hasOwnProperty('text')) {
+                    comment.text = change.text;
+                }
+            }
+            break;
+        case 'comment_move':
+            if (optRuntime && optRuntime.getEditingTarget()) {
+                const currTarget = optRuntime.getEditingTarget();
+                if (currTarget && !currTarget.comments.hasOwnProperty(e.commentId)) {
+                    log.warn(`Cannot change comment with id ${e.commentId} because it does not exist.`);
+                    return;
+                }
+                const comment = currTarget.comments[e.commentId];
+                const newCoord = e.newCoordinate_;
+                comment.x = newCoord.x;
+                comment.y = newCoord.y;
+            }
+            break;
+        case 'comment_delete':
+            if (optRuntime && optRuntime.getEditingTarget()) {
+                const currTarget = optRuntime.getEditingTarget();
+                if (!currTarget.comments.hasOwnProperty(e.commentId)) {
+                    // If we're in this state, we have probably received
+                    // a delete event from a workspace that we switched from
+                    // (e.g. a delete event for a comment on sprite a's workspace
+                    // when switching from sprite a to sprite b)
+                    return;
+                }
+                delete currTarget.comments[e.commentId];
+                if (e.blockId) {
+                    const block = currTarget.blocks.getBlock(e.blockId);
+                    if (!block) {
+                        log.warn(`Could not find block referenced by comment with id: ${e.commentId}`);
+                        return;
+                    }
+                    delete block.comment;
+                }
+            }
+            break;
         }
     }
 
@@ -441,23 +517,38 @@ class Blocks {
                 break;
             }
 
-            const isSpriteSpecific = optRuntime.monitorBlockInfo.hasOwnProperty(block.opcode) &&
-                optRuntime.monitorBlockInfo[block.opcode].isSpriteSpecific;
+            // Variable blocks may be sprite specific depending on the owner of the variable
+            let isSpriteLocalVariable = false;
+            if (block.opcode === 'data_variable') {
+                isSpriteLocalVariable = !optRuntime.getEditingTarget().isStage &&
+                    optRuntime.getEditingTarget().variables[block.fields.VARIABLE.id];
+            } else if (block.opcode === 'data_listcontents') {
+                isSpriteLocalVariable = !optRuntime.getEditingTarget().isStage &&
+                    optRuntime.getEditingTarget().variables[block.fields.LIST.id];
+            }
+
+
+            const isSpriteSpecific = isSpriteLocalVariable ||
+                (optRuntime.monitorBlockInfo.hasOwnProperty(block.opcode) &&
+                optRuntime.monitorBlockInfo[block.opcode].isSpriteSpecific);
             block.targetId = isSpriteSpecific ? optRuntime.getEditingTarget().id : null;
 
             if (wasMonitored && !block.isMonitored) {
-                optRuntime.requestRemoveMonitor(block.id);
+                optRuntime.requestHideMonitor(block.id);
             } else if (!wasMonitored && block.isMonitored) {
-                optRuntime.requestAddMonitor(MonitorRecord({
-                    // @todo(vm#564) this will collide if multiple sprites use same block
-                    id: block.id,
-                    targetId: block.targetId,
-                    spriteName: block.targetId ? optRuntime.getTargetById(block.targetId).getName() : null,
-                    opcode: block.opcode,
-                    params: this._getBlockParams(block),
-                    // @todo(vm#565) for numerical values with decimals, some countries use comma
-                    value: ''
-                }));
+                // Tries to show the monitor for specified block. If it doesn't exist, add the monitor.
+                if (!optRuntime.requestShowMonitor(block.id)) {
+                    optRuntime.requestAddMonitor(MonitorRecord({
+                        id: block.id,
+                        targetId: block.targetId,
+                        spriteName: block.targetId ? optRuntime.getTargetById(block.targetId).getName() : null,
+                        opcode: block.opcode,
+                        params: this._getBlockParams(block),
+                        // @todo(vm#565) for numerical values with decimals, some countries use comma
+                        value: '',
+                        mode: block.opcode === 'data_listcontents' ? 'list' : 'default'
+                    }));
+                }
             }
             break;
         }
@@ -722,19 +813,21 @@ class Blocks {
     /**
      * Encode all of `this._blocks` as an XML string usable
      * by a Blockly/scratch-blocks workspace.
+     * @param {object<string, Comment>} comments Map of comments referenced by id
      * @return {string} String of XML representing this object's blocks.
      */
-    toXML () {
-        return this._scripts.map(script => this.blockToXML(script)).join();
+    toXML (comments) {
+        return this._scripts.map(script => this.blockToXML(script, comments)).join();
     }
 
     /**
      * Recursively encode an individual block and its children
      * into a Blockly/scratch-blocks XML string.
      * @param {!string} blockId ID of block to encode.
+     * @param {object<string, Comment>} comments Map of comments referenced by id
      * @return {string} String of XML representing this block and any children.
      */
-    blockToXML (blockId) {
+    blockToXML (blockId, comments) {
         const block = this._blocks[blockId];
         // Encode properties of this block.
         const tagName = (block.shadow) ? 'shadow' : 'block';
@@ -744,6 +837,18 @@ class Blocks {
                 type="${block.opcode}"
                 ${block.topLevel ? `x="${block.x}" y="${block.y}"` : ''}
             >`;
+        const commentId = block.comment;
+        if (commentId) {
+            if (comments) {
+                if (comments.hasOwnProperty(commentId)) {
+                    xmlString += comments[commentId].toXML();
+                } else {
+                    log.warn(`Could not find comment with id: ${commentId} in provided comment descriptions.`);
+                }
+            } else {
+                log.warn(`Cannot serialize comment with id: ${commentId}; no comment descriptions provided.`);
+            }
+        }
         // Add any mutation. Must come before inputs.
         if (block.mutation) {
             xmlString += this.mutationToXML(block.mutation);
@@ -756,11 +861,11 @@ class Blocks {
             if (blockInput.block || blockInput.shadow) {
                 xmlString += `<value name="${blockInput.name}">`;
                 if (blockInput.block) {
-                    xmlString += this.blockToXML(blockInput.block);
+                    xmlString += this.blockToXML(blockInput.block, comments);
                 }
                 if (blockInput.shadow && blockInput.shadow !== blockInput.block) {
                     // Obscured shadow.
-                    xmlString += this.blockToXML(blockInput.shadow);
+                    xmlString += this.blockToXML(blockInput.shadow, comments);
                 }
                 xmlString += '</value>';
             }
@@ -786,7 +891,7 @@ class Blocks {
         }
         // Add blocks connected to the next connection.
         if (block.next) {
-            xmlString += `<next>${this.blockToXML(block.next)}</next>`;
+            xmlString += `<next>${this.blockToXML(block.next, comments)}</next>`;
         }
         xmlString += `</${tagName}>`;
         return xmlString;
@@ -874,23 +979,34 @@ class Blocks {
  * reset.
  * @param {Blocks} blocks Blocks containing the expected blockId
  * @param {string} blockId blockId for the desired execute cache
+ * @param {function} CacheType constructor for cached block information
  * @return {object} execute cache object
  */
-BlocksExecuteCache.getCached = function (blocks, blockId) {
-    const block = blocks.getBlock(blockId);
-    if (typeof block === 'undefined') return null;
+BlocksExecuteCache.getCached = function (blocks, blockId, CacheType) {
     let cached = blocks._cache._executeCached[blockId];
     if (typeof cached !== 'undefined') {
         return cached;
     }
 
-    cached = {
-        _initialized: false,
-        opcode: blocks.getOpcode(block),
-        fields: blocks.getFields(block),
-        inputs: blocks.getInputs(block),
-        mutation: blocks.getMutation(block)
-    };
+    const block = blocks.getBlock(blockId);
+    if (typeof block === 'undefined') return null;
+
+    if (typeof CacheType === 'undefined') {
+        cached = {
+            opcode: blocks.getOpcode(block),
+            fields: blocks.getFields(block),
+            inputs: blocks.getInputs(block),
+            mutation: blocks.getMutation(block)
+        };
+    } else {
+        cached = new CacheType(blocks, {
+            opcode: blocks.getOpcode(block),
+            fields: blocks.getFields(block),
+            inputs: blocks.getInputs(block),
+            mutation: blocks.getMutation(block)
+        });
+    }
+
     blocks._cache._executeCached[blockId] = cached;
     return cached;
 };

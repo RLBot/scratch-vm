@@ -12,6 +12,7 @@ const TargetType = require('../extension-support/target-type');
 const Thread = require('./thread');
 const log = require('../util/log');
 const maybeFormatMessage = require('../util/maybe-format-message');
+const StageLayering = require('./stage-layering');
 
 // Virtual I/O devices.
 const Clock = require('../io/clock');
@@ -505,9 +506,9 @@ class Runtime extends EventEmitter {
             name: maybeFormatMessage(extensionInfo.name),
             blockIconURI: extensionInfo.blockIconURI,
             menuIconURI: extensionInfo.menuIconURI,
-            color1: '#FF6680',
-            color2: '#FF4D6A',
-            color3: '#FF3355',
+            color1: extensionInfo.colour || '#FF6680',
+            color2: extensionInfo.colourSecondary || '#FF4D6A',
+            color3: extensionInfo.colourTertiary || '#FF3355',
             blocks: [],
             menus: []
         };
@@ -552,6 +553,16 @@ class Runtime extends EventEmitter {
                 categoryInfo.menus.push(convertedMenu);
             }
         }
+
+        // Add extension status button
+        if (extensionInfo.showStatusButton) {
+            categoryInfo.blocks.push({
+                info: {},
+                json: null,
+                xml: `<button type="status" extensionId="${categoryInfo.id}"></button>`
+            });
+        }
+
         for (const blockInfo of extensionInfo.blocks) {
             if (blockInfo === '---') {
                 categoryInfo.blocks.push(ConvertedSeparator);
@@ -656,11 +667,15 @@ class Runtime extends EventEmitter {
         };
 
         // If an icon for the extension exists, prepend it to each block, with a vertical separator.
-        if (categoryInfo.blockIconURI) {
+        // We can overspecify an icon for each block, but if no icon exists on a block, fall back to
+        // the category block icon.
+        const iconURI = blockInfo.blockIconURI || categoryInfo.blockIconURI;
+
+        if (iconURI) {
             blockJSON.message0 = '%1 %2';
             const iconJSON = {
                 type: 'field_image',
-                src: categoryInfo.blockIconURI,
+                src: iconURI,
                 width: 40,
                 height: 40
             };
@@ -850,7 +865,7 @@ class Runtime extends EventEmitter {
             const menuIconXML = menuIconURI ?
                 `iconURI="${menuIconURI}"` : '';
 
-            xmlParts.push(`<category name="${name}" ${colorXML} ${menuIconXML}>`);
+            xmlParts.push(`<category name="${name}" id="${categoryInfo.id}" ${colorXML} ${menuIconXML}>`);
             xmlParts.push.apply(xmlParts, paletteBlocks.map(block => block.xml));
             xmlParts.push('</category>');
         }
@@ -926,6 +941,15 @@ class Runtime extends EventEmitter {
      */
     attachRenderer (renderer) {
         this.renderer = renderer;
+        this.renderer.setLayerGroupOrdering(StageLayering.LAYER_GROUPS);
+    }
+
+    /**
+     * Set the svg adapter, which converts scratch 2 svgs to scratch 3 svgs
+     * @param {!SvgRenderer} svgAdapter The adapter to attach
+     */
+    attachV2SVGAdapter (svgAdapter) {
+        this.v2SvgAdapter = svgAdapter;
     }
 
     /**
@@ -1012,6 +1036,19 @@ class Runtime extends EventEmitter {
                 thread.stack.length > 0 &&
                 thread.status !== Thread.STATUS_DONE) &&
             this.threads.indexOf(thread) > -1);
+    }
+
+    /**
+     * Return whether a thread is waiting for more information or done.
+     * @param {?Thread} thread Thread object to check.
+     * @return {boolean} True if the thread is waiting
+     */
+    isWaitingThread (thread) {
+        return (
+            thread.status === Thread.STATUS_PROMISE_WAIT ||
+            thread.status === Thread.STATUS_YIELD_TICK ||
+            !this.isActiveThread(thread)
+        );
     }
 
     /**
@@ -1187,6 +1224,8 @@ class Runtime extends EventEmitter {
     dispose () {
         this.stopAll();
         this.targets.map(this.disposeTarget, this);
+        this._monitorState = OrderedMap({});
+        // @todo clear out extensions? turboMode? etc.
         this.rlbotManager.reset();
     }
 
@@ -1517,26 +1556,38 @@ class Runtime extends EventEmitter {
 
     /**
      * Add a monitor to the state. If the monitor already exists in the state,
-     * overwrites it.
+     * updates those properties that are defined in the given monitor record.
      * @param {!MonitorRecord} monitor Monitor to add.
      */
     requestAddMonitor (monitor) {
-        this._monitorState = this._monitorState.set(monitor.get('id'), monitor);
+        const id = monitor.get('id');
+        if (!this.requestUpdateMonitor(monitor)) { // update monitor if it exists in the state
+            // if the monitor did not exist in the state, add it
+            this._monitorState = this._monitorState.set(id, monitor);
+        }
     }
 
     /**
-     * Update a monitor in the state. Does nothing if the monitor does not already
-     * exist in the state.
+     * Update a monitor in the state and report success/failure of update.
      * @param {!Map} monitor Monitor values to update. Values on the monitor with overwrite
      *     values on the old monitor with the same ID. If a value isn't defined on the new monitor,
      *     the old monitor will keep its old value.
+     * @return {boolean} true if monitor exists in the state and was updated, false if it did not exist.
      */
     requestUpdateMonitor (monitor) {
         const id = monitor.get('id');
         if (this._monitorState.has(id)) {
             this._monitorState =
-                this._monitorState.set(id, this._monitorState.get(id).merge(monitor));
+                // Use mergeWith here to prevent undefined values from overwriting existing ones
+                this._monitorState.set(id, this._monitorState.get(id).mergeWith((prev, next) => {
+                    if (typeof next === 'undefined' || next === null) {
+                        return prev;
+                    }
+                    return next;
+                }, monitor));
+            return true;
         }
+        return false;
     }
 
     /**
@@ -1546,6 +1597,31 @@ class Runtime extends EventEmitter {
      */
     requestRemoveMonitor (monitorId) {
         this._monitorState = this._monitorState.delete(monitorId);
+    }
+
+    /**
+     * Hides a monitor and returns success/failure of action.
+     * @param {!string} monitorId ID of the monitor to hide.
+     * @return {boolean} true if monitor exists and was updated, false otherwise
+     */
+    requestHideMonitor (monitorId) {
+        return this.requestUpdateMonitor(new Map([
+            ['id', monitorId],
+            ['visible', false]
+        ]));
+    }
+
+    /**
+     * Shows a monitor and returns success/failure of action.
+     * not exist in the state.
+     * @param {!string} monitorId ID of the monitor to show.
+     * @return {boolean} true if monitor exists and was updated, false otherwise
+     */
+    requestShowMonitor (monitorId) {
+        return this.requestUpdateMonitor(new Map([
+            ['id', monitorId],
+            ['visible', true]
+        ]));
     }
 
     /**

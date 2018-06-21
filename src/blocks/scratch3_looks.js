@@ -2,6 +2,7 @@ const Cast = require('../util/cast');
 const Clone = require('../util/clone');
 const RenderedTarget = require('../sprites/rendered-target');
 const uid = require('../util/uid');
+const StageLayering = require('../engine/stage-layering');
 
 /**
  * @typedef {object} BubbleState - the bubble state associated with a particular target.
@@ -91,7 +92,7 @@ class Scratch3LooksBlocks {
     _onTargetWillExit (target) {
         const bubbleState = this._getBubbleState(target);
         if (bubbleState.drawableId && bubbleState.skinId) {
-            this.runtime.renderer.destroyDrawable(bubbleState.drawableId);
+            this.runtime.renderer.destroyDrawable(bubbleState.drawableId, StageLayering.SPRITE_LAYER);
             this.runtime.renderer.destroySkin(bubbleState.skinId);
             bubbleState.drawableId = null;
             bubbleState.skinId = null;
@@ -152,10 +153,17 @@ class Scratch3LooksBlocks {
             this.runtime.renderer.updateDrawableProperties(bubbleState.drawableId, {
                 position: [
                     bubbleState.onSpriteRight ? (
-                        Math.min(stageBounds.right - bubbleWidth, targetBounds.right)
+                        Math.max(
+                            stageBounds.left, // Bubble should not extend past left edge of stage
+                            Math.min(stageBounds.right - bubbleWidth, targetBounds.right)
+                        )
                     ) : (
-                        Math.max(stageBounds.left, targetBounds.left - bubbleWidth)
+                        Math.min(
+                            stageBounds.right - bubbleWidth, // Bubble should not extend past right edge of stage
+                            Math.max(stageBounds.left, targetBounds.left - bubbleWidth)
+                        )
                     ),
+                    // Bubble should not extend past the top of the stage
                     Math.min(stageBounds.top, targetBounds.bottom + bubbleHeight)
                 ]
             });
@@ -195,10 +203,9 @@ class Scratch3LooksBlocks {
                 bubbleState.onSpriteRight = false;
             }
 
-            bubbleState.drawableId = this.runtime.renderer.createDrawable();
+            bubbleState.drawableId = this.runtime.renderer.createDrawable(StageLayering.SPRITE_LAYER);
             bubbleState.skinId = this.runtime.renderer.createTextSkin(type, text, bubbleState.onSpriteRight, [0, 0]);
 
-            this.runtime.renderer.setDrawableOrder(bubbleState.drawableId, Infinity);
             this.runtime.renderer.updateDrawableProperties(bubbleState.drawableId, {
                 skinId: bubbleState.skinId
             });
@@ -258,9 +265,17 @@ class Scratch3LooksBlocks {
 
     getMonitored () {
         return {
-            looks_size: {isSpriteSpecific: true},
-            looks_costumenumbername: {isSpriteSpecific: true},
-            looks_backdropnumbername: {}
+            looks_size: {
+                isSpriteSpecific: true,
+                getId: targetId => `${targetId}_size`
+            },
+            looks_costumenumbername: {
+                isSpriteSpecific: true,
+                getId: targetId => `${targetId}_costumenumbername`
+            },
+            looks_backdropnumbername: {
+                getId: () => 'backdropnumbername'
+            }
         };
     }
 
@@ -283,7 +298,7 @@ class Scratch3LooksBlocks {
                 this._bubbleTimeout = null;
                 // Clear say bubble if it hasn't been changed and proceed.
                 if (this._getBubbleState(target).usageId === usageId) {
-                    this._onTargetWillExit(target);
+                    this._updateBubble(target, 'say', '');
                 }
                 resolve();
             }, 1000 * args.SECS);
@@ -303,7 +318,7 @@ class Scratch3LooksBlocks {
                 this._bubbleTimeout = null;
                 // Clear think bubble if it hasn't been changed and proceed.
                 if (this._getBubbleState(target).usageId === usageId) {
-                    this._onTargetWillExit(target);
+                    this._updateBubble(target, 'think', '');
                 }
                 resolve();
             }, 1000 * args.SECS);
@@ -343,6 +358,13 @@ class Scratch3LooksBlocks {
             } else if (requestedCostume === 'next costume' ||
                        requestedCostume === 'next backdrop') {
                 target.setCostume(target.currentCostume + 1);
+            } else if (requestedCostume === 'random backdrop') {
+                const numCostumes = target.getCostumes().length;
+                if (numCostumes > 1) {
+                    let selectedIndex = Math.floor(Math.random() * (numCostumes - 1));
+                    if (selectedIndex === target.currentCostume) selectedIndex += 1;
+                    target.setCostume(selectedIndex);
+                }
             } else {
                 const forcedNumber = Number(requestedCostume);
                 if (!isNaN(forcedNumber)) {
@@ -394,7 +416,17 @@ class Scratch3LooksBlocks {
         const instance = this;
         const waiting = util.stackFrame.startedThreads.some(thread => instance.runtime.isActiveThread(thread));
         if (waiting) {
-            util.yield();
+            // If all threads are waiting for the next tick or later yield
+            // for a tick as well. Otherwise yield until the next loop of
+            // the threads.
+            if (
+                util.stackFrame.startedThreads
+                    .every(thread => instance.runtime.isWaitingThread(thread))
+            ) {
+                util.yieldTick();
+            } else {
+                util.yield();
+            }
         }
     }
 

@@ -428,6 +428,11 @@ const specMap = {
         argMap: [
         ]
     },
+    'costumeName': {
+        opcode: 'looks_costumenumbername',
+        argMap: [
+        ]
+    },
     'sceneName': {
         opcode: 'looks_backdropnumbername',
         argMap: [
@@ -1424,6 +1429,18 @@ const specMap = {
         ]
     },
     'readVariable': {
+        opcode: 'data_variable',
+        argMap: [
+            {
+                type: 'field',
+                fieldName: 'VARIABLE',
+                variableType: Variable.SCALAR_TYPE
+            }
+        ]
+    },
+    // Scratch 2 uses this alternative variable getter opcode only in monitors,
+    // blocks use the `readVariable` opcode above.
+    'getVar:': {
         opcode: 'data_variable',
         argMap: [
             {

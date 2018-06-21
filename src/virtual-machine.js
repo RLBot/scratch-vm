@@ -6,6 +6,7 @@ const Buffer = require('buffer').Buffer;
 const centralDispatch = require('./dispatch/central-dispatch');
 const ExtensionManager = require('./extension-support/extension-manager');
 const log = require('./util/log');
+const MathUtil = require('./util/math-util');
 const Runtime = require('./engine/runtime');
 const sb2 = require('./serialization/sb2');
 const sb3 = require('./serialization/sb3');
@@ -337,8 +338,6 @@ class VirtualMachine extends EventEmitter {
         const extensionPromises = [];
 
         if (wholeProject) {
-            this.clear();
-
             CORE_EXTENSIONS.forEach(extensionID => {
                 if (!this.extensionManager.isExtensionLoaded(extensionID)) {
                     extensionPromises.push(this.extensionManager.loadExtensionURL(extensionID));
@@ -838,6 +837,14 @@ class VirtualMachine extends EventEmitter {
     }
 
     /**
+     * Set the svg adapter for the VM/runtime, which converts scratch 2 svgs to scratch 3 svgs
+     * @param {!SvgRenderer} svgAdapter The adapter to attach
+     */
+    attachV2SVGAdapter (svgAdapter) {
+        this.runtime.attachV2SVGAdapter(svgAdapter);
+    }
+
+    /**
      * Set the storage module for the VM/runtime
      * @param {!ScratchStorage} storage The storage module to attach
      */
@@ -938,6 +945,46 @@ class VirtualMachine extends EventEmitter {
     }
 
     /**
+     * Called when costumes are dragged from editing target to another target.
+     * Sets the newly added costume as the current costume.
+     * @param {!number} costumeIndex Index of the costume of the editing target to share.
+     * @param {!string} targetId Id of target to add the costume.
+     * @return {Promise} Promise that resolves when the new costume has been loaded.
+     */
+    shareCostumeToTarget (costumeIndex, targetId) {
+        const originalCostume = this.editingTarget.getCostumes()[costumeIndex];
+        const clone = Object.assign({}, originalCostume);
+        const md5ext = `${clone.assetId}.${clone.dataFormat}`;
+        return loadCostume(md5ext, clone, this.runtime).then(() => {
+            const target = this.runtime.getTargetById(targetId);
+            if (target) {
+                target.addCostume(clone);
+                target.setCostume(
+                    target.getCostumes().length - 1
+                );
+            }
+        });
+    }
+
+    /**
+     * Called when sounds are dragged from editing target to another target.
+     * @param {!number} soundIndex Index of the sound of the editing target to share.
+     * @param {!string} targetId Id of target to add the sound.
+     * @return {Promise} Promise that resolves when the new sound has been loaded.
+     */
+    shareSoundToTarget (soundIndex, targetId) {
+        const originalSound = this.editingTarget.getSounds()[soundIndex];
+        const clone = Object.assign({}, originalSound);
+        return loadSound(clone, this.runtime).then(() => {
+            const target = this.runtime.getTargetById(targetId);
+            if (target) {
+                target.addSound(clone);
+                this.emitTargetsUpdate();
+            }
+        });
+    }
+
+    /**
      * Repopulate the workspace with the blocks of the current editingTarget. This
      * allows us to get around bugs like gui#413.
      */
@@ -1008,12 +1055,16 @@ class VirtualMachine extends EventEmitter {
         );
 
         const variables = Object.keys(variableMap).map(k => variableMap[k]);
+        const workspaceComments = Object.keys(this.editingTarget.comments)
+            .map(k => this.editingTarget.comments[k])
+            .filter(c => c.blockId === null);
 
         const xmlString = `<xml xmlns="http://www.w3.org/1999/xhtml">
                             <variables>
                                 ${variables.map(v => v.toXML()).join()}
                             </variables>
-                            ${this.editingTarget.blocks.toXML()}
+                            ${workspaceComments.map(c => c.toXML()).join()}
+                            ${this.editingTarget.blocks.toXML(this.editingTarget.comments)}
                         </xml>`;
 
         this.emit('workspaceUpdate', {xml: xmlString});
@@ -1030,6 +1081,55 @@ class VirtualMachine extends EventEmitter {
             return target.id;
         }
         return null;
+    }
+
+    /**
+     * Reorder target by index. Return whether a change was made.
+     * @param {!string} targetIndex Index of the target.
+     * @param {!number} newIndex index that the target should be moved to.
+     * @returns {boolean} Whether a target was reordered.
+     */
+    reorderTarget (targetIndex, newIndex) {
+        let targets = this.runtime.targets;
+        targetIndex = MathUtil.clamp(targetIndex, 0, targets.length - 1);
+        newIndex = MathUtil.clamp(newIndex, 0, targets.length - 1);
+        if (targetIndex === newIndex) return false;
+        const target = targets[targetIndex];
+        targets = targets.slice(0, targetIndex).concat(targets.slice(targetIndex + 1));
+        targets.splice(newIndex, 0, target);
+        this.runtime.targets = targets;
+        this.emitTargetsUpdate();
+        return true;
+    }
+
+    /**
+     * Reorder the costumes of a target if it exists. Return whether it succeeded.
+     * @param {!string} targetId ID of the target which owns the costumes.
+     * @param {!number} costumeIndex index of the costume to move.
+     * @param {!number} newIndex index that the costume should be moved to.
+     * @returns {boolean} Whether a costume was reordered.
+     */
+    reorderCostume (targetId, costumeIndex, newIndex) {
+        const target = this.runtime.getTargetById(targetId);
+        if (target) {
+            return target.reorderCostume(costumeIndex, newIndex);
+        }
+        return false;
+    }
+
+    /**
+     * Reorder the sounds of a target if it exists. Return whether it occured.
+     * @param {!string} targetId ID of the target which owns the sounds.
+     * @param {!number} soundIndex index of the sound to move.
+     * @param {!number} newIndex index that the sound should be moved to.
+     * @returns {boolean} Whether a sound was reordered.
+     */
+    reorderSound (targetId, soundIndex, newIndex) {
+        const target = this.runtime.getTargetById(targetId);
+        if (target) {
+            return target.reorderSound(soundIndex, newIndex);
+        }
+        return false;
     }
 
     /**
@@ -1069,6 +1169,42 @@ class VirtualMachine extends EventEmitter {
         } else {
             this.editingTarget.postSpriteInfo(data);
         }
+    }
+
+    /**
+     * Set a target's variable's value. Return whether it succeeded.
+     * @param {!string} targetId ID of the target which owns the variable.
+     * @param {!string} variableId ID of the variable to set.
+     * @param {!*} value The new value of that variable.
+     * @returns {boolean} whether the target and variable were found and updated.
+     */
+    setVariableValue (targetId, variableId, value) {
+        const target = this.runtime.getTargetById(targetId);
+        if (target) {
+            const variable = target.lookupVariableById(variableId);
+            if (variable) {
+                variable.value = value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get a target's variable's value. Return null if the target or variable does not exist.
+     * @param {!string} targetId ID of the target which owns the variable.
+     * @param {!string} variableId ID of the variable to set.
+     * @returns {?*} The value of the variable, or null if it could not be looked up.
+     */
+    getVariableValue (targetId, variableId) {
+        const target = this.runtime.getTargetById(targetId);
+        if (target) {
+            const variable = target.lookupVariableById(variableId);
+            if (variable) {
+                return variable.value;
+            }
+        }
+        return null;
     }
 }
 

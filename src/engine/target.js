@@ -2,6 +2,7 @@ const EventEmitter = require('events');
 
 const Blocks = require('./blocks');
 const Variable = require('../engine/variable');
+const Comment = require('../engine/comment');
 const uid = require('../util/uid');
 const {Map} = require('immutable');
 const log = require('../util/log');
@@ -43,16 +44,16 @@ class Target extends EventEmitter {
         this.blocks = blocks;
         /**
          * Dictionary of variables and their values for this target.
-         * Key is the variable name.
+         * Key is the variable id.
          * @type {Object.<string,*>}
          */
         this.variables = {};
         /**
-         * Dictionary of lists and their contents for this target.
-         * Key is the list name.
+         * Dictionary of comments for this target.
+         * Key is the comment id.
          * @type {Object.<string,*>}
          */
-        this.lists = {};
+        this.comments = {};
         /**
          * Dictionary of custom state for this target.
          * This can be used to store target-specific custom state for blocks which need it.
@@ -154,7 +155,7 @@ class Target extends EventEmitter {
         // If the stage has a global copy, return it.
         if (this.runtime && !this.isStage) {
             const stage = this.runtime.getTargetForStage();
-            if (stage.variables.hasOwnProperty(id)) {
+            if (stage && stage.variables.hasOwnProperty(id)) {
                 return stage.variables[id];
             }
         }
@@ -187,6 +188,36 @@ class Target extends EventEmitter {
         if (!this.variables.hasOwnProperty(id)) {
             const newVariable = new Variable(id, name, type, false);
             this.variables[id] = newVariable;
+        }
+    }
+
+    /**
+     * Creates a comment with the given properties.
+     * @param {string} id Id of the comment.
+     * @param {string} blockId Optional id of the block the comment is attached
+     * to if it is a block comment.
+     * @param {string} text The text the comment contains.
+     * @param {number} x The x coordinate of the comment on the workspace.
+     * @param {number} y The y coordinate of the comment on the workspace.
+     * @param {number} width The width of the comment when it is full size
+     * @param {number} height The height of the comment when it is full size
+     * @param {boolean} minimized Whether the comment is minimized.
+     */
+    createComment (id, blockId, text, x, y, width, height, minimized) {
+        if (!this.comments.hasOwnProperty(id)) {
+            const newComment = new Comment(id, text, x, y,
+                width, height, minimized);
+            if (blockId) {
+                newComment.blockId = blockId;
+                const blockWithComment = this.blocks.getBlock(blockId);
+                if (blockWithComment) {
+                    blockWithComment.comment = id;
+                } else {
+                    log.warn(`Could not find block with id ${blockId
+                    } associated with commentId: ${id}`);
+                }
+            }
+            this.comments[id] = newComment;
         }
     }
 

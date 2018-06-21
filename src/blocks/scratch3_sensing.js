@@ -73,16 +73,28 @@ class Scratch3SensingBlocks {
             sensing_loud: this.isLoud,
             sensing_askandwait: this.askAndWait,
             sensing_answer: this.getAnswer,
+            sensing_username: this.getUsername,
             sensing_userid: () => {} // legacy no-op block
         };
     }
 
     getMonitored () {
         return {
-            sensing_answer: {},
-            sensing_loudness: {},
-            sensing_timer: {},
-            sensing_current: {}
+            sensing_answer: {
+                getId: () => 'answer'
+            },
+            sensing_loudness: {
+                getId: () => 'loudness'
+            },
+            sensing_timer: {
+                getId: () => 'timer'
+            },
+            sensing_current: {
+                // This is different from the default toolbox xml id in order to support
+                // importing multiple monitors from the same opcode from sb2 files,
+                // something that is not currently supported in scratch 3.
+                getId: (_, param) => `current_${param}`
+            }
         };
     }
 
@@ -199,16 +211,7 @@ class Scratch3SensingBlocks {
     }
 
     touchingObject (args, util) {
-        const requestedObject = args.TOUCHINGOBJECTMENU;
-        if (requestedObject === '_mouse_') {
-            const mouseX = util.ioQuery('mouse', 'getClientX');
-            const mouseY = util.ioQuery('mouse', 'getClientY');
-            return util.target.isTouchingPoint(mouseX, mouseY);
-        } else if (requestedObject === '_edge_') {
-            return util.target.isTouchingEdge();
-        }
-        return util.target.isTouchingSprite(requestedObject);
-
+        return util.target.isTouchingObject(args.TOUCHINGOBJECTMENU);
     }
 
     touchingColor (args, util) {
@@ -379,6 +382,11 @@ class Scratch3SensingBlocks {
 
         // Otherwise, 0
         return 0;
+    }
+
+    getUsername () {
+        // Logged out users get empty string. Return that for now.
+        return '';
     }
 }
 
