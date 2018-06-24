@@ -85,6 +85,11 @@ class RenderedTarget extends Target {
         this.rlbotIndex = -1;
 
         /**
+         * True if this target is allowed to control the corresponding entity in rocket league.
+         */
+        this.rlbotCommunication = false;
+
+        /**
          * Scratch X coordinate. Currently should range from -240 to 240.
          * @type {Number}
          */
@@ -1111,6 +1116,7 @@ class RenderedTarget extends Target {
             isStage: this.isStage,
             rlbotType: this.rlbotType,
             rlbotIndex: this.rlbotIndex,
+            rlbotCommunication: this.rlbotCommunication,
             x: this.x,
             y: this.y,
             size: this.size,

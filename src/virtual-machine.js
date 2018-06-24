@@ -746,14 +746,8 @@ class VirtualMachine extends EventEmitter {
                 }
             }
 
-            const playerNum = this.runtime.rlbotManager.extractPlayerNum(sprite.name);
-            if (Number.isInteger(playerNum)) {
-                target.rlbotType = 'car';
-                target.rlbotIndex = playerNum;
-            }
-            if (this.runtime.rlbotManager.isBall(sprite)) {
-                target.rlbotType = 'ball';
-            }
+            this.runtime.rlbotManager.initTarget(target);
+
             this.emitTargetsUpdate();
         } else {
             throw new Error('No target with the provided id.');
@@ -792,6 +786,9 @@ class VirtualMachine extends EventEmitter {
                     }
                 }
             }
+
+            this.runtime.rlbotManager.forgetTarget(target);
+
             // Sprite object should be deleted by GC.
             this.emitTargetsUpdate();
         } else {

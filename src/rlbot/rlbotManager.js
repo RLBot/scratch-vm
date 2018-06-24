@@ -18,6 +18,7 @@ class RLBotManager extends EventEmitter {
         this.hasDirtyControllerState = false;
         this.socketString = 'ws://localhost:' + DEFAULT_PORT;
         this.hasConnection = false; // The UI will use this to report success to the user.
+        this.enabledPlayers = [];
 
         this.connect();
     }
@@ -43,6 +44,32 @@ class RLBotManager extends EventEmitter {
         this.connect();
     }
 
+    forgetTarget(target) {
+        if (target.rlbotType === 'car') {
+            delete this.playerTargets[target.rlbotIndex];
+            delete this._controllerStates[target.rlbotIndex];
+        } else if (target.rlbotType === 'ball') {
+            this.ballTarget = null;
+        }
+    }
+
+    initTarget(target) {
+
+        this.forgetTarget(target);
+
+        const playerNum = this.extractPlayerNum(target.sprite.name);
+        if (Number.isInteger(playerNum)) {
+            target.rlbotType = 'car';
+            target.rlbotIndex = playerNum;
+            this.playerTargets[target.rlbotIndex] = target;
+            this.filterPlayer(playerNum, this.enabledPlayers[playerNum]);
+        }
+        if (this.isBall(target.sprite)) {
+            target.rlbotType = 'ball';
+            this.ballTarget = target;
+        }
+    }
+
     filterPlayer(playerIndex, shouldSendControllerState) {
         if (shouldSendControllerState) {
             if (!this._controllerStates[playerIndex]) {
@@ -51,6 +78,15 @@ class RLBotManager extends EventEmitter {
         } else {
             delete this._controllerStates[playerIndex];
         }
+
+        this.enabledPlayers[playerIndex] = shouldSendControllerState;
+        const target = this.playerTargets[playerIndex];
+        if (target) {
+            target.rlbotCommunication = shouldSendControllerState;
+            this.emit('rlbotFilterUpdate', {
+                target: target
+            });
+    }
     }
 
     connect () {
@@ -63,10 +99,7 @@ class RLBotManager extends EventEmitter {
             self.hasConnection = true;
             self._gameState = JSON.parse(evt.data);
 
-            self.ensureCarTargetsExist(self);
-            self.ensureBallTargetExists(self);
-
-            const skipRedraw = Date.now() - self.lastPositionUpdate < 40; // Render at 24fps
+            const skipRedraw = Date.now() - self.lastPositionUpdate < 50; // Render at 20fps
             if (!skipRedraw) {
                 self.lastPositionUpdate = Date.now();
             }
@@ -105,29 +138,6 @@ class RLBotManager extends EventEmitter {
         this.ws.onerror = function () {
             self.ws.close();
         };
-    }
-
-    ensureBallTargetExists () {
-        if (this._gameState.ball && !this.ballTarget) {
-            for (let i = 0; i < this.runtime.targets.length; i++) {
-                const target = this.runtime.targets[i];
-                if (target.sprite.name === 'ball') {
-                    this.ballTarget = target;
-                }
-            }
-        }
-    }
-
-    ensureCarTargetsExist () {
-        if (this._gameState.players.length > this.playerTargets.length) {
-            for (let i = 0; i < this.runtime.targets.length; i++) {
-                const target = this.runtime.targets[i];
-                const num = target.rlbotIndex;
-                if (target.rlbotType === 'car' && !this.playerTargets[num]) {
-                    this.playerTargets[num] = target;
-                }
-            }
-        }
     }
 
     step () {
