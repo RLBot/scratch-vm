@@ -64,6 +64,7 @@
     "json": "^9.0.4",
     "lodash.defaultsdeep": "4.6.0",
     "pngjs": "^3.3.2",
+    "reconnecting-websocket": "4.0.0-rc5",
     "scratch-audio": "latest",
     "scratch-blocks": "file:../scratch-blocks",
     "scratch-render": "latest",

@@ -1,6 +1,7 @@
 const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
 const EventEmitter = require('events');
+const ReconnectingWebSocket = require('reconnecting-websocket').default;
 const AXIS_SCALE = 32;
 const DEFAULT_PORT = '42008';
 
@@ -9,7 +10,6 @@ class RLBotManager extends EventEmitter {
         super();
 
         this.runtime = runtime;
-        this.ws = null;
         this._controllerStates = {};
         this._gameState = {};
         this.playerTargets = [];
@@ -20,7 +20,49 @@ class RLBotManager extends EventEmitter {
         this.hasConnection = false; // The UI will use this to report success to the user.
         this.enabledPlayers = [];
 
-        this.connect();
+        const self = this;
+        const urlProvider = () => self.socketString;
+        this.ws = new ReconnectingWebSocket(urlProvider);
+        this.ws.addEventListener("message", (evt) => {
+            const now = Date.now();
+            self.hasConnection = true;
+            self._gameState = JSON.parse(evt.data);
+
+            const skipRedraw = now - self.lastPositionUpdate < 50; // Render at 20fps
+            if (!skipRedraw) {
+                self.lastPositionUpdate = now;
+            }
+
+            if (self.ballTarget) {
+                const location = self.convertVec(self._gameState.ball.location);
+                self.ballTarget.setXY(location.x, location.y, false, skipRedraw);
+            }
+
+            for (let i = 0; i < self.playerTargets.length; i++) {
+                if (self.playerTargets[i]) {
+                    const player = self._gameState.players[i];
+                    if (player) {
+                        const location = self.convertVec(player.location);
+                        self.playerTargets[i].setXY(location.x, location.y, false, skipRedraw);
+                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw), skipRedraw);
+                    }
+                }
+            }
+
+            self.runtime.startHats('event_whenbroadcastreceived', {
+                BROADCAST_OPTION: 'New RLBot Data'
+            });
+        });
+
+        this.ws.addEventListener('close', (evt) => {
+            self.hasConnection = false;
+
+            // TODO: remove this logic when https://github.com/pladaria/reconnecting-websocket/issues/60
+            // is dealt with.
+            if (self.ws._shouldReconnect) {
+                self.ws._connect();
+            }
+        });
     }
 
     reset () {
@@ -37,13 +79,9 @@ class RLBotManager extends EventEmitter {
             this.socketString += ':' + DEFAULT_PORT;
         }
 
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.close();
-        }
-        
-        this.connect();
+        this.ws.reconnect();
     }
-
+        
     forgetTarget(target) {
         if (target.rlbotType === 'car') {
             delete this.playerTargets[target.rlbotIndex];
@@ -86,58 +124,7 @@ class RLBotManager extends EventEmitter {
             this.emit('rlbotFilterUpdate', {
                 target: target
             });
-    }
-    }
-
-    connect () {
-
-        const self = this;
-
-        this.ws = new WebSocket(self.socketString);
-
-        this.ws.onmessage = function (evt) {
-            self.hasConnection = true;
-            self._gameState = JSON.parse(evt.data);
-
-            const skipRedraw = Date.now() - self.lastPositionUpdate < 50; // Render at 20fps
-            if (!skipRedraw) {
-                self.lastPositionUpdate = Date.now();
-            }
-
-            if (self.ballTarget) {
-                const location = self.convertVec(self._gameState.ball.location);
-                self.ballTarget.setXY(location.x, location.y, false, skipRedraw);
-            }
-
-            for (let i = 0; i < self.playerTargets.length; i++) {
-                if (self.playerTargets[i]) {
-                    const player = self._gameState.players[i];
-                    if (player) {
-                        const location = self.convertVec(player.location);
-                        self.playerTargets[i].setXY(location.x, location.y, false, skipRedraw);
-                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw), skipRedraw);
-                    }
-                }
-            }
-
-            self.runtime.startHats('event_whenbroadcastreceived', {
-                BROADCAST_OPTION: 'New RLBot Data'
-            });
-        };
-
-        this.ws.onopen = function () {
         }
-
-        this.ws.onclose = function () {
-            self.hasConnection = false;
-            setTimeout(() => {
-                self.connect();
-            }, 1000);
-        };
-
-        this.ws.onerror = function () {
-            self.ws.close();
-        };
     }
 
     step () {
