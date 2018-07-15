@@ -1146,6 +1146,11 @@ class Runtime extends EventEmitter {
 
         // Consider all scripts, looking for hats with opcode `requestedHatOpcode`.
         this.allScriptsDo((topBlockId, target) => {
+
+            if (target.rlbotType === 'car' && !target.rlbotCommunication) {
+                return; // Don't start any scripts for disabled cars.
+            }
+
             const blocks = target.blocks;
             const block = blocks.getBlock(topBlockId);
             const potentialHatOpcode = block.opcode;

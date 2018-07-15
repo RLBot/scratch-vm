@@ -58,6 +58,7 @@
     "eslint-config-scratch": "^5.0.0",
     "expose-loader": "0.7.5",
     "file-loader": "^1.1.6",
+    "flatbuffers": "1.9.0",
     "format-message-cli": "5.2.1",
     "gh-pages": "^1.1.0",
     "in-publish": "^2.0.0",

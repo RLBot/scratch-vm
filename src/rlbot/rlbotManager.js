@@ -1,6 +1,8 @@
 const ControllerState = require('./controllerState');
 const Vector3 = require('./vector3');
 const EventEmitter = require('events');
+const rlbot = require('./rlbot_generated');
+const Flatbuffers = require('flatbuffers');
 const ReconnectingWebSocket = require('reconnecting-websocket').default;
 const AXIS_SCALE = 32;
 const DEFAULT_PORT = '42008';
@@ -11,7 +13,7 @@ class RLBotManager extends EventEmitter {
 
         this.runtime = runtime;
         this._controllerStates = {};
-        this._gameState = {};
+        this._flatState = null;
         this.playerTargets = [];
         this.ballTarget = null;
         this.lastPositionUpdate = Date.now();
@@ -26,32 +28,38 @@ class RLBotManager extends EventEmitter {
         this.ws.addEventListener("message", (evt) => {
             const now = Date.now();
             self.hasConnection = true;
-            self._gameState = JSON.parse(evt.data);
+            const fileReader = new FileReader();
+            fileReader.onload = function(event) {
+                const bb = new Flatbuffers.flatbuffers.ByteBuffer(new Uint8Array(event.target.result));
+                self._flatState = rlbot.flat.TinyPacket.getRootAsTinyPacket(bb);
 
-            const skipRedraw = now - self.lastPositionUpdate < 50; // Render at 20fps
-            if (!skipRedraw) {
-                self.lastPositionUpdate = now;
-            }
+                const skipRedraw = now - self.lastPositionUpdate < 50; // Render at 20fps
 
-            if (self.ballTarget) {
-                const location = self.convertVec(self._gameState.ball.location);
-                self.ballTarget.setXY(location.x, location.y, false, skipRedraw);
-            }
+                if (!skipRedraw) {
+                    self.lastPositionUpdate = now;
 
-            for (let i = 0; i < self.playerTargets.length; i++) {
-                if (self.playerTargets[i]) {
-                    const player = self._gameState.players[i];
-                    if (player) {
-                        const location = self.convertVec(player.location);
-                        self.playerTargets[i].setXY(location.x, location.y, false, skipRedraw);
-                        self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation.yaw), skipRedraw);
+                    if (self.ballTarget) {
+                        const location = self.getBallLocation();
+                        self.ballTarget.setXY(location.x, location.y, false, skipRedraw);
+                    }
+    
+                    for (let i = 0; i < self.playerTargets.length; i++) {
+                        if (self.playerTargets[i]) {
+                            if (self._flatState.playersLength() > i) {
+                                const player = self._flatState.players(i);
+                                const location = self.convertVec(player.location());
+                                self.playerTargets[i].setXY(location.x, location.y, false, skipRedraw);
+                                self.playerTargets[i].setDirection(self.rlbotRadiansToScratchDegrees(player.rotation().yaw()), skipRedraw);
+                            }
+                        }
                     }
                 }
-            }
 
-            self.runtime.startHats('event_whenbroadcastreceived', {
-                BROADCAST_OPTION: 'New RLBot Data'
-            });
+                self.runtime.startHats('event_whenbroadcastreceived', {
+                    BROADCAST_OPTION: 'New RLBot Data'
+                });
+            }
+            fileReader.readAsArrayBuffer(evt.data);
         });
 
         this.ws.addEventListener('close', (evt) => {
@@ -120,6 +128,9 @@ class RLBotManager extends EventEmitter {
         this.enabledPlayers[playerIndex] = shouldSendControllerState;
         const target = this.playerTargets[playerIndex];
         if (target) {
+            if (!shouldSendControllerState) {
+                this.runtime.stopForTarget(target);
+            }
             target.rlbotCommunication = shouldSendControllerState;
             this.emit('rlbotFilterUpdate', {
                 target: target
@@ -150,45 +161,41 @@ class RLBotManager extends EventEmitter {
         });
     }
 
-    getGameState () {
-        return this._gameState;
-    }
-
     getPlayerLocation (index) {
-        if (this._gameState.players && this._gameState.players[index]) {
-            const v3Dict = this._gameState.players[index].location;
+        if (this._flatState && this._flatState.playersLength() > index) {
+            const v3Dict = this._flatState.players(index).location();
             return this.convertVec(v3Dict);
         }
         return new Vector3();
     }
 
     getBallLocation () {
-        if (this._gameState.ball) {
-            const v3Dict = this._gameState.ball.location;
+        if (this._flatState) {
+            const v3Dict = this._flatState.ball().location();
             return this.convertVec(v3Dict);
         }
         return new Vector3();
     }
 
     getPlayerVelocity (index) {
-        if (this._gameState.players && this._gameState.players[index]) {
-            const v3Dict = this._gameState.players[index].velocity;
+        if (this._flatState && this._flatState.playersLength() > index) {
+            const v3Dict = this._flatState.players(index).location();
             return this.convertVec(v3Dict);
         }
         return new Vector3();
     }
 
     getBallVelocity () {
-        if (this._gameState.ball) {
-            const v3Dict = this._gameState.ball.velocity;
+        if (this._flatState) {
+            const v3Dict = this._flatState.ball().velocity();
             return this.convertVec(v3Dict);
         }
         return new Vector3();
     }
 
     convertVec (v3Dict) {
-        // Divide by 10 to get friendlier numbers. Invert x for sanity.
-        return new Vector3(-v3Dict.x / AXIS_SCALE, v3Dict.y / AXIS_SCALE, v3Dict.z / AXIS_SCALE);
+        // Divide to get friendlier numbers. Invert x for sanity.
+        return new Vector3(-v3Dict.x() / AXIS_SCALE, v3Dict.y() / AXIS_SCALE, v3Dict.z() / AXIS_SCALE);
     }
 
     atanRadiansToRlbotRadians(atanRads) {
@@ -216,8 +223,8 @@ class RLBotManager extends EventEmitter {
     }
 
     getPlayerYawRadians (index) {
-        if (this._gameState.players && this._gameState.players[index]) {
-            return this._gameState.players[index].rotation.yaw;
+        if (this._flatState && this._flatState.playersLength() > index) {
+            return this._flatState.players(index).rotation().yaw();
         }
         return 0;
     }
