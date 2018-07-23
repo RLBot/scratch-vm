@@ -179,10 +179,17 @@ class RLBotManager extends EventEmitter {
 
     getPlayerVelocity (index) {
         if (this._flatState && this._flatState.playersLength() > index) {
-            const v3Dict = this._flatState.players(index).location();
-            return this.convertVec(v3Dict);
+            const v3 = this._flatState.players(index).velocity();
+            return this.convertVec(v3);
         }
         return new Vector3();
+    }
+
+    getPlayerDefendingSide (index) {
+        if (this._flatState && this._flatState.playersLength() > index) {
+            return this._flatState.players(index).team() * 2 - 1;
+        }
+        return 0;
     }
 
     getBallVelocity () {

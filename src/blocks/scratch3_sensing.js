@@ -53,6 +53,7 @@ class Scratch3SensingBlocks {
         return {
             sensing_rlbot_location: this.rlbotLocation,
             sensing_rlbot_velocity: this.rlbotVelocity,
+            sensing_rlbot_defending_side: this.rlbotDefendingSide,
             sensing_rlbot_degreesto: this.rlbotDegreesTo,
             sensing_vectorof: this.getVectorAttributeOf,
             sensing_touchingobject: this.touchingObject,
@@ -182,6 +183,16 @@ class Scratch3SensingBlocks {
             }
         }
         return new Vector3();
+    }
+
+    rlbotDefendingSide (args, util) {
+        const target = util.target;
+        if (target.rlbotType) {
+            if (target.rlbotType === 'car') {
+                return this.runtime.rlbotManager.getPlayerDefendingSide(target.rlbotIndex);
+            }
+        }
+        return 0;
     }
 
     rlbotDegreesTo (args, util) {
