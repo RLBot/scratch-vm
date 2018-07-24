@@ -339,8 +339,8 @@ class Scratch3SensingBlocks {
         if (!attrTarget || attrTarget.isStage) return new Vector3();
         
         switch (args.PROPERTY) {
-            case 'rlbot location': return this.rlbotLocationOfTarget(attrTarget);
-            case 'rlbot velocity': return this.rlbotVelocityOfTarget(attrTarget);
+            case '3D location': return this.rlbotLocationOfTarget(attrTarget);
+            case '3D velocity': return this.rlbotVelocityOfTarget(attrTarget);
         }
         return new Vector3();
     }
