@@ -219,8 +219,11 @@ class RLBotManager extends EventEmitter {
     }
 
     extractPlayerNum (name) {
-        if (name.startsWith('player-')) {
-            return parseInt(name.slice('player-'.length), 10) - 1;
+        const regex = /^player-([0-9]+)$/;
+        const result = regex.exec(name);
+
+        if (result) {
+            return parseInt(result[1], 10) - 1;
         }
         return null;
     }
