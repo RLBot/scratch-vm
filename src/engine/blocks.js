@@ -14,8 +14,13 @@ const Variable = require('./variable');
  * and handle updates from Scratch Blocks events.
  */
 
+/**
+ * Create a block container.
+ * @param {boolean} optNoGlow Optional flag to indicate that blocks in this container
+ * should not request glows. This does not affect glows when clicking on a block to execute it.
+ */
 class Blocks {
-    constructor () {
+    constructor (optNoGlow) {
         /**
          * All blocks in the workspace.
          * Keys are block IDs, values are metadata about the block.
@@ -60,6 +65,17 @@ class Blocks {
              */
             _executeCached: {}
         };
+
+        /**
+         * Flag which indicates that blocks in this container should not glow.
+         * Blocks will still glow when clicked on, but this flag is used to control
+         * whether the blocks in this container can request a glow as part of
+         * a running stack. E.g. the flyout block container and the monitor block container
+         * should not be able to request a glow, but blocks containers belonging to
+         * sprites should.
+         * @type {boolean}
+         */
+        this.forceNoGlow = optNoGlow || false;
 
     }
 
@@ -241,7 +257,7 @@ class Blocks {
     }
 
     duplicate () {
-        const newBlocks = new Blocks();
+        const newBlocks = new Blocks(this.forceNoGlow);
         newBlocks._blocks = Clone.simple(this._blocks);
         newBlocks._scripts = Clone.simple(this._scripts);
         return newBlocks;
@@ -354,7 +370,7 @@ class Blocks {
             }
             break;
         case 'var_rename':
-            if (editingTarget && editingTarget.hasOwnProperty(e.varId)) {
+            if (editingTarget && editingTarget.variables.hasOwnProperty(e.varId)) {
                 // This is a local variable, rename on the current target
                 editingTarget.renameVariable(e.varId, e.newName);
                 // Update all the blocks on the current target that use
@@ -372,7 +388,7 @@ class Blocks {
             }
             break;
         case 'var_delete': {
-            const target = (editingTarget && editingTarget.hasOwnProperty(e.varId)) ?
+            const target = (editingTarget && editingTarget.variables.hasOwnProperty(e.varId)) ?
                 editingTarget : stage;
             target.deleteVariable(e.varId);
             break;
@@ -693,12 +709,15 @@ class Blocks {
     /**
      * Returns a map of all references to variables or lists from blocks
      * in this block container.
+     * @param {Array<object>} optBlocks Optional list of blocks to constrain the search to.
+     * This is useful for getting variable/list references for a stack of blocks instead
+     * of all blocks on the workspace
      * @return {object} A map of variable ID to a list of all variable references
      * for that ID. A variable reference contains the field referencing that variable
      * and also the type of the variable being referenced.
      */
-    getAllVariableAndListReferences () {
-        const blocks = this._blocks;
+    getAllVariableAndListReferences (optBlocks) {
+        const blocks = optBlocks ? optBlocks : this._blocks;
         const allReferences = Object.create(null);
         for (const blockId in blocks) {
             let varOrListField = null;

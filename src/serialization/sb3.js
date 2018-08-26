@@ -12,10 +12,13 @@ const Comment = require('../engine/comment');
 const StageLayering = require('../engine/stage-layering');
 const log = require('../util/log');
 const uid = require('../util/uid');
+const MathUtil = require('../util/math-util');
 
 const {loadCostume} = require('../import/load-costume.js');
 const {loadSound} = require('../import/load-sound.js');
 const {deserializeCostume, deserializeSound} = require('./deserialize-assets.js');
+
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
  * @typedef {object} ImportedProject
@@ -98,7 +101,7 @@ const primitiveOpcodeInfoMap = {
 const serializePrimitiveBlock = function (block) {
     // Returns an array represeting a primitive block or null if not one of
     // the primitive types above
-    if (primitiveOpcodeInfoMap.hasOwnProperty(block.opcode)) {
+    if (hasOwnProperty.call(primitiveOpcodeInfoMap, block.opcode)) {
         const primitiveInfo = primitiveOpcodeInfoMap[block.opcode];
         const primitiveConstant = primitiveInfo[0];
         const fieldName = primitiveInfo[1];
@@ -131,7 +134,7 @@ const serializePrimitiveBlock = function (block) {
 const serializeInputs = function (inputs) {
     const obj = Object.create(null);
     for (const inputName in inputs) {
-        if (!inputs.hasOwnProperty(inputName)) continue;
+        if (!hasOwnProperty.call(inputs, inputName)) continue;
         // if block and shadow refer to the same block, only serialize one
         if (inputs[inputName].block === inputs[inputName].shadow) {
             // has block and shadow, and they are the same
@@ -165,7 +168,7 @@ const serializeInputs = function (inputs) {
 const serializeFields = function (fields) {
     const obj = Object.create(null);
     for (const fieldName in fields) {
-        if (!fields.hasOwnProperty(fieldName)) continue;
+        if (!hasOwnProperty.call(fields, fieldName)) continue;
         obj[fieldName] = [fields[fieldName].value];
         if (fields[fieldName].hasOwnProperty('id')) {
             obj[fieldName].push(fields[fieldName].id);
@@ -439,6 +442,7 @@ const serializeTarget = function (target, extensions) {
     obj.costumes = target.costumes.map(serializeCostume);
     obj.sounds = target.sounds.map(serializeSound);
     if (target.hasOwnProperty('volume')) obj.volume = target.volume;
+    if (target.hasOwnProperty('layerOrder')) obj.layerOrder = target.layerOrder;
     if (obj.isStage) { // Only the stage should have these properties
         if (target.hasOwnProperty('tempo')) obj.tempo = target.tempo;
         if (target.hasOwnProperty('videoTransparency')) obj.videoTransparency = target.videoTransparency;
@@ -460,6 +464,11 @@ const serializeTarget = function (target, extensions) {
     return obj;
 };
 
+const getSimplifiedLayerOrdering = function (targets) {
+    const layerOrders = targets.map(t => t.getLayerOrder());
+    return MathUtil.reducedSortOrdering(layerOrders);
+};
+
 /**
  * Serializes the specified VM runtime.
  * @param {!Runtime} runtime VM runtime instance to be serialized.
@@ -471,9 +480,22 @@ const serialize = function (runtime, targetId) {
     const obj = Object.create(null);
     // Create extension set to hold extension ids found while serializing targets
     const extensions = new Set();
-    const flattenedOriginalTargets = JSON.parse(JSON.stringify(targetId ?
+
+    const originalTargetsToSerialize = targetId ?
         [runtime.getTargetById(targetId)] :
-        runtime.targets.filter(target => target.isOriginal)));
+        runtime.targets.filter(target => target.isOriginal);
+
+    const layerOrdering = getSimplifiedLayerOrdering(originalTargetsToSerialize);
+
+    const flattenedOriginalTargets = JSON.parse(JSON.stringify(originalTargetsToSerialize));
+
+    // If the renderer is attached, and we're serializing a whole project (not a sprite)
+    // add a temporary layerOrder property to each target.
+    if (runtime.renderer && !targetId) {
+        flattenedOriginalTargets.forEach((t, index) => {
+            t.layerOrder = layerOrdering[index];
+        });
+    }
 
     const serializedTargets = flattenedOriginalTargets.map(t => serializeTarget(t, extensions));
 
@@ -670,8 +692,10 @@ const deserializeInputs = function (inputs, parentId, blocks) {
     // because we call prototype functions later in the vm
     const obj = {};
     for (const inputName in inputs) {
-        if (!inputs.hasOwnProperty(inputName)) continue;
+        if (!hasOwnProperty.call(inputs, inputName)) continue;
         const inputDescArr = inputs[inputName];
+        // If this block has already been deserialized (it's not an array) skip it
+        if (!Array.isArray(inputDescArr)) continue;
         let block = null;
         let shadow = null;
         const blockShadowInfo = inputDescArr[0];
@@ -703,8 +727,10 @@ const deserializeFields = function (fields) {
     // because we call prototype functions later in the vm
     const obj = {};
     for (const fieldName in fields) {
-        if (!fields.hasOwnProperty(fieldName)) continue;
+        if (!hasOwnProperty.call(fields, fieldName)) continue;
         const fieldDescArr = fields[fieldName];
+        // If this block has already been deserialized (it's not an array) skip it
+        if (!Array.isArray(fieldDescArr)) continue;
         obj[fieldName] = {
             name: fieldName,
             value: fieldDescArr[0]
@@ -722,6 +748,37 @@ const deserializeFields = function (fields) {
     }
     return obj;
 };
+
+/**
+ * Covnert serialized INPUT and FIELD primitives back to hydrated block templates.
+ * Should be able to deserialize a format that has already been deserialized.  The only
+ * "east" path to adding new targets/code requires going through deserialize, so it should
+ * work with pre-parsed deserialized blocks.
+ *
+ * @param {object} blocks Serialized SB3 "blocks" property of a target. Will be mutated.
+ * @return {object} input is modified and returned
+ */
+const deserializeBlocks = function (blocks) {
+    for (const blockId in blocks) {
+        if (!Object.prototype.hasOwnProperty.call(blocks, blockId)) {
+            continue;
+        }
+        const block = blocks[blockId];
+        if (Array.isArray(block)) {
+            // this is one of the primitives
+            // delete the old entry in object.blocks and replace it w/the
+            // deserialized object
+            delete block[blockId];
+            deserializeInputDesc(block, null, false, blocks);
+            continue;
+        }
+        block.id = blockId; // add id back to block since it wasn't serialized
+        block.inputs = deserializeInputs(block.inputs, blockId, blocks);
+        block.fields = deserializeFields(block.fields);
+    }
+    return blocks;
+};
+
 
 /**
  * Parse a single "Scratch object" and create all its in-memory VM objects.
@@ -748,25 +805,7 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
         sprite.name = object.name;
     }
     if (object.hasOwnProperty('blocks')) {
-        for (const blockId in object.blocks) {
-            if (!object.blocks.hasOwnProperty(blockId)) continue;
-            const blockJSON = object.blocks[blockId];
-            if (Array.isArray(blockJSON)) {
-                // this is one of the primitives
-                // delete the old entry in object.blocks and replace it w/the
-                // deserialized object
-                delete object.blocks[blockId];
-                deserializeInputDesc(blockJSON, null, false, object.blocks);
-                continue;
-            }
-            blockJSON.id = blockId; // add id back to block since it wasn't serialized
-            const serializedInputs = blockJSON.inputs;
-            const deserializedInputs = deserializeInputs(serializedInputs, blockId, object.blocks);
-            blockJSON.inputs = deserializedInputs;
-            const serializedFields = blockJSON.fields;
-            const deserializedFields = deserializeFields(serializedFields);
-            blockJSON.fields = deserializedFields;
-        }
+        deserializeBlocks(object.blocks);
         // Take a second pass to create objects and add extensions
         for (const blockId in object.blocks) {
             if (!object.blocks.hasOwnProperty(blockId)) continue;
@@ -932,6 +971,12 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
     if (object.hasOwnProperty('isStage')) {
         target.isStage = object.isStage;
     }
+    if (object.hasOwnProperty('targetPaneOrder')) {
+        // Temporarily store the 'targetPaneOrder' property
+        // so that we can correctly order sprites in the target pane.
+        // This will be deleted after we are done parsing and ordering the targets list.
+        target.targetPaneOrder = object.targetPaneOrder;
+    }
     if (object.hasOwnProperty('rlbotType')) {
         target.rlbotType = object.rlbotType;
     }
@@ -960,10 +1005,28 @@ const deserialize = function (json, runtime, zip, isSingleSprite) {
         extensionIDs: new Set(),
         extensionURLs: new Map()
     };
+
+    // First keep track of the current target order in the json,
+    // then sort by the layer order property before parsing the targets
+    // so that their corresponding render drawables can be created in
+    // their layer order (e.g. back to front)
+    const targetObjects = ((isSingleSprite ? [json] : json.targets) || [])
+        .map((t, i) => Object.assign(t, {targetPaneOrder: i}))
+        .sort((a, b) => a.layerOrder - b.layerOrder);
+
     return Promise.all(
-        ((isSingleSprite ? [json] : json.targets) || []).map(target =>
+        targetObjects.map(target =>
             parseScratchObject(target, runtime, extensions, zip))
     )
+        .then(targets => targets // Re-sort targets back into original sprite-pane ordering
+            .sort((a, b) => a.targetPaneOrder - b.targetPaneOrder)
+            .map(t => {
+                // Delete the temporary properties used for
+                // sprite pane ordering and stage layer ordering
+                delete t.targetPaneOrder;
+                delete t.layerOrder;
+                return t;
+            }))
         .then(targets => ({
             targets,
             extensions
@@ -972,5 +1035,7 @@ const deserialize = function (json, runtime, zip, isSingleSprite) {
 
 module.exports = {
     serialize: serialize,
-    deserialize: deserialize
+    deserialize: deserialize,
+    deserializeBlocks: deserializeBlocks,
+    serializeBlocks: serializeBlocks
 };

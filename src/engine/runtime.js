@@ -13,6 +13,7 @@ const Thread = require('./thread');
 const log = require('../util/log');
 const maybeFormatMessage = require('../util/maybe-format-message');
 const StageLayering = require('./stage-layering');
+const Variable = require('./variable');
 
 // Virtual I/O devices.
 const Clock = require('../io/clock');
@@ -20,8 +21,12 @@ const DeviceManager = require('../io/deviceManager');
 const Keyboard = require('../io/keyboard');
 const Mouse = require('../io/mouse');
 const MouseWheel = require('../io/mouseWheel');
+const UserData = require('../io/userData');
 const Video = require('../io/video');
 const RLBotManager = require('../rlbot/rlbotManager');
+
+const StringUtil = require('../util/string-util');
+const uid = require('../util/uid');
 
 const defaultBlockPackages = {
     scratch3_control: require('../blocks/scratch3_control'),
@@ -37,7 +42,7 @@ const defaultBlockPackages = {
 
 /**
  * Information used for converting Scratch argument types into scratch-blocks data.
- * @type {object.<ArgumentType, {shadowType: string, fieldType: string}>}}
+ * @type {object.<ArgumentType, {shadowType: string, fieldType: string}>}
  */
 const ArgumentTypeMap = (() => {
     const map = {};
@@ -61,6 +66,10 @@ const ArgumentTypeMap = (() => {
     };
     map[ArgumentType.VECTOR3] = {
         check: 'Vector3'
+    };
+    map[ArgumentType.MATRIX] = {
+        shadowType: 'matrix',
+        fieldType: 'MATRIX'
     };
     return map;
 })();
@@ -122,14 +131,14 @@ class Runtime extends EventEmitter {
          * These will execute on `_editingTarget.`
          * @type {!Blocks}
          */
-        this.flyoutBlocks = new Blocks();
+        this.flyoutBlocks = new Blocks(true /* force no glow */);
 
         /**
          * Storage container for monitor blocks.
          * These will execute on a target maybe
          * @type {!Blocks}
          */
-        this.monitorBlocks = new Blocks();
+        this.monitorBlocks = new Blocks(true /* force no glow */);
 
         /**
          * Currently known editing target for the VM.
@@ -255,8 +264,11 @@ class Runtime extends EventEmitter {
             keyboard: new Keyboard(this),
             mouse: new Mouse(this),
             mouseWheel: new MouseWheel(this),
+            userData: new UserData(),
             video: new Video(this)
         };
+
+        this.extensionDevices = {};
 
         this.rlbotManager = new RLBotManager(this);
         this.rlbotStepRequested = false;
@@ -315,6 +327,22 @@ class Runtime extends EventEmitter {
      */
     static get BLOCK_GLOW_OFF () {
         return 'BLOCK_GLOW_OFF';
+    }
+
+    /**
+     * Event name for turning on turbo mode.
+     * @const {string}
+     */
+    static get TURBO_MODE_ON () {
+        return 'TURBO_MODE_ON';
+    }
+
+    /**
+     * Event name for turning off turbo mode.
+     * @const {string}
+     */
+    static get TURBO_MODE_OFF () {
+        return 'TURBO_MODE_OFF';
     }
 
     /**
@@ -399,6 +427,38 @@ class Runtime extends EventEmitter {
      */
     static get EXTENSION_ADDED () {
         return 'EXTENSION_ADDED';
+    }
+
+    /**
+     * Event name for updating the available set of peripheral devices.
+     * @const {string}
+     */
+    static get PERIPHERAL_LIST_UPDATE () {
+        return 'PERIPHERAL_LIST_UPDATE';
+    }
+
+    /**
+     * Event name for reporting that a peripheral has connected.
+     * @const {string}
+     */
+    static get PERIPHERAL_CONNECTED () {
+        return 'PERIPHERAL_CONNECTED';
+    }
+
+    /**
+     * Event name for reporting that a peripheral has encountered an error.
+     * @const {string}
+     */
+    static get PERIPHERAL_ERROR () {
+        return 'PERIPHERAL_ERROR';
+    }
+
+    /**
+     * Event name for reporting that a peripheral has not been discovered.
+     * @const {string}
+     */
+    static get PERIPHERAL_SCAN_TIMEOUT () {
+        return 'PERIPHERAL_SCAN_TIMEOUT';
     }
 
     /**
@@ -530,6 +590,7 @@ class Runtime extends EventEmitter {
         let extensionBlocks = [];
         for (const categoryInfo of this._blockInfo) {
             if (extensionInfo.id === categoryInfo.id) {
+                categoryInfo.name = maybeFormatMessage(extensionInfo.name);
                 categoryInfo.blocks = [];
                 categoryInfo.menus = [];
                 this._fillExtensionCategory(categoryInfo, extensionInfo);
@@ -878,6 +939,36 @@ class Runtime extends EventEmitter {
             (result, categoryInfo) => result.concat(categoryInfo.blocks.map(blockInfo => blockInfo.json)), []);
     }
 
+    registerExtensionDevice (extensionId, device) {
+        this.extensionDevices[extensionId] = device;
+    }
+
+    startDeviceScan (extensionId) {
+        if (this.extensionDevices[extensionId]) {
+            this.extensionDevices[extensionId].startDeviceScan();
+        }
+    }
+
+    connectToPeripheral (extensionId, peripheralId) {
+        if (this.extensionDevices[extensionId]) {
+            this.extensionDevices[extensionId].connectDevice(peripheralId);
+        }
+    }
+
+    disconnectExtensionSession (extensionId) {
+        if (this.extensionDevices[extensionId]) {
+            this.extensionDevices[extensionId].disconnectSession();
+        }
+    }
+
+    getPeripheralIsConnected (extensionId) {
+        let isConnected = false;
+        if (this.extensionDevices[extensionId]) {
+            isConnected = this.extensionDevices[extensionId].getPeripheralIsConnected();
+        }
+        return isConnected;
+    }
+
     /**
      * Retrieve the function associated with the given opcode.
      * @param {!string} opcode The opcode to look up.
@@ -948,6 +1039,15 @@ class Runtime extends EventEmitter {
      */
     attachV2SVGAdapter (svgAdapter) {
         this.v2SvgAdapter = svgAdapter;
+    }
+
+    /**
+     * Set the bitmap adapter for the VM/runtime, which converts scratch 2
+     * bitmaps to scratch 3 bitmaps. (Scratch 3 bitmaps are all bitmap resolution 2)
+     * @param {!function} bitmapAdapter The adapter to attach
+     */
+    attachV2BitmapAdapter (bitmapAdapter) {
+        this.v2BitmapAdapter = bitmapAdapter;
     }
 
     /**
@@ -1441,7 +1541,7 @@ class Runtime extends EventEmitter {
             const target = thread.target;
             if (target === this._editingTarget) {
                 const blockForThread = thread.blockGlowInFrame;
-                if (thread.requestScriptGlowInFrame) {
+                if (thread.requestScriptGlowInFrame || thread.stackClick) {
                     let script = target.blocks.getTopLevelScript(blockForThread);
                     if (!script) {
                         // Attempt to find in flyout blocks.
@@ -1742,6 +1842,25 @@ class Runtime extends EventEmitter {
             varNames = varNames.concat(targetVarNames);
         }
         return varNames;
+    }
+
+    /**
+     * Create a new global variable avoiding conflicts with other variable names.
+     * @param {string} variableName The desired variable name for the new global variable.
+     * This can be turned into a fresh name as necessary.
+     * @param {string} optVarId An optional ID to use for the variable. A new one will be generated
+     * if a falsey value for this parameter is provided.
+     * @param {string} optVarType The type of the variable to create. Defaults to Variable.SCALAR_TYPE.
+     * @return {Variable} The new variable that was created.
+     */
+    createNewGlobalVariable (variableName, optVarId, optVarType) {
+        const varType = (typeof optVarType === 'string') ? optVarType : Variable.SCALAR_TYPE;
+        const allVariableNames = this.getAllVarNamesOfType(varType);
+        const newName = StringUtil.unusedName(variableName, allVariableNames);
+        const variable = new Variable(optVarId || uid(), newName, varType);
+        const stage = this.getTargetForStage();
+        stage.variables[variable.id] = variable;
+        return variable;
     }
 
     /**

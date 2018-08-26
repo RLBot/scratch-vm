@@ -31,7 +31,12 @@ const ArgumentType = {
     /**
      * Vector3 value with arrow shaped placeholder.
      */
-    VECTOR3: 'Vector3'
+    VECTOR3: 'Vector3',
+
+    /**
+     * String value with matirx field
+     */
+    MATRIX: 'matrix'
 };
 
 module.exports = ArgumentType;
