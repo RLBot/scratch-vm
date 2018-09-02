@@ -185,6 +185,29 @@ class RLBotManager extends EventEmitter {
         return new Vector3();
     }
 
+    getPitch (index) {
+        if (this._flatState && this._flatState.playersLength() > index) {
+            const pitchRad = this._flatState.players(index).rotation().pitch();
+            return pitchRad * 180 / Math.PI;
+        }
+        return 0;
+    }
+
+    getRoll (index) {
+        if (this._flatState && this._flatState.playersLength() > index) {
+            const pitchRad = this._flatState.players(index).rotation().roll();
+            return pitchRad * 180 / Math.PI;
+        }
+        return 0;
+    }
+
+    getBoostAmount (index) {
+        if (this._flatState && this._flatState.playersLength() > index) {
+            return this._flatState.players(index).boost();
+        }
+        return 0;
+    }
+
     getPlayerDefendingSide (index) {
         if (this._flatState && this._flatState.playersLength() > index) {
             return this._flatState.players(index).team() * 2 - 1;
