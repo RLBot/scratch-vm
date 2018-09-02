@@ -183,23 +183,6 @@ const parseScripts = function (scripts, blocks, addBroadcastMsg, getVariableId, 
             blocks.createBlock(convertedBlocks[j]);
         }
     }
-
-    // scriptIndexForComment is now greater than the index of the 'last' block in the flattened block array.
-    // If there are any comments referring to this index or any indices after it, they are comments that
-    // were originally created as block comments, detached from the block, and then had the associated block deleted.
-    // These comments should be imported as workspace comments
-    // by making their blockIDs (which currently refer to non-existing blocks)
-    // null (See #1452).
-    const blockCommentIndicesToFix = Object.keys(comments).filter(k => k >= scriptIndexForComment);
-    for (let i = 0; i < blockCommentIndicesToFix.length; i++) {
-        const currCommentIndex = blockCommentIndicesToFix[i];
-        const currBlockComments = comments[currCommentIndex];
-        currBlockComments.forEach(c => {
-            if (typeof c.blockId === 'number') {
-                c.blockId = null;
-            }
-        });
-    }
 };
 
 /**
@@ -523,6 +506,22 @@ const parseScratchObject = function (object, runtime, extensions, topLevel, zip)
         parseScripts(object.scripts, blocks, addBroadcastMsg, getVariableId, extensions, blockComments);
     }
 
+    // If there are any comments referring to a numerical block ID, make them
+    // workspace comments. These are comments that were originally created as
+    // block comments, detached from the block, and then had the associated
+    // block deleted.
+    // These comments should be imported as workspace comments
+    // by making their blockIDs (which currently refer to non-existing blocks)
+    // null (See #1452).
+    for (const commentIndex in blockComments) {
+        const currBlockComments = blockComments[commentIndex];
+        currBlockComments.forEach(c => {
+            if (typeof c.blockId === 'number') {
+                c.blockId = null;
+            }
+        });
+    }
+
     // Update stage specific blocks (e.g. sprite clicked <=> stage clicked)
     blocks.updateTargetSpecificBlocks(topLevel); // topLevel = isStage
 
@@ -833,6 +832,10 @@ const parseBlock = function (sb2block, addBroadcastMsg, getVariableId, extension
                     // Update commentIndex
                     commentIndex = parsedBlockDesc[1];
                 }
+                // Check if innerBlocks is an empty list.
+                // This indicates that all the inner blocks from the sb2 have
+                // unknown opcodes and have been skipped.
+                if (innerBlocks.length === 0) continue;
                 let previousBlock = null;
                 for (let j = 0; j < innerBlocks.length; j++) {
                     if (j === 0) {
