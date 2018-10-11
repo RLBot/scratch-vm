@@ -1329,7 +1329,6 @@ class Runtime extends EventEmitter {
         this.targets.map(this.disposeTarget, this);
         this._monitorState = OrderedMap({});
         // @todo clear out extensions? turboMode? etc.
-        this.rlbotManager.reset();
     }
 
     /**
@@ -1399,6 +1398,8 @@ class Runtime extends EventEmitter {
         this.targets = newTargets;
         // Dispose all threads.
         this.threads.forEach(thread => this._stopThread(thread));
+
+        this.rlbotManager.reset();
     }
 
     /**
