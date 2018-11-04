@@ -1399,7 +1399,7 @@ class Runtime extends EventEmitter {
         // Dispose all threads.
         this.threads.forEach(thread => this._stopThread(thread));
 
-        this.rlbotManager.reset();
+        this.rlbotManager.resetControllerStates();
     }
 
     /**

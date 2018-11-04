@@ -76,6 +76,10 @@ class RLBotManager extends EventEmitter {
     reset () {
         this.ballTarget = null;
         this.playerTargets = [];
+        this.resetControllerStates();
+    }
+
+    resetControllerStates() {
         for (let idx in this._controllerStates) {
             this._controllerStates[idx].reset();
         }
