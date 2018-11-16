@@ -518,7 +518,7 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
-                inputOp: 'math_number',
+                inputOp: 'note',
                 inputName: 'NOTE'
             },
             {
@@ -534,6 +534,16 @@ const specMap = {
             {
                 type: 'input',
                 inputOp: 'music_menu_INSTRUMENT',
+                inputName: 'INSTRUMENT'
+            }
+        ]
+    },
+    'midiInstrument:': {
+        opcode: 'music_midiSetInstrument',
+        argMap: [
+            {
+                type: 'input',
+                inputOp: 'math_number',
                 inputName: 'INSTRUMENT'
             }
         ]
@@ -803,6 +813,7 @@ const specMap = {
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -812,6 +823,7 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -821,10 +833,12 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'CONDITION'
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -834,14 +848,17 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'CONDITION'
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK2'
             }
         ]
@@ -851,6 +868,7 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'CONDITION'
             }
         ]
@@ -860,10 +878,12 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'CONDITION'
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -873,10 +893,12 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'CONDITION'
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -895,6 +917,7 @@ const specMap = {
             },
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -948,6 +971,7 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'substack',
                 inputName: 'SUBSTACK'
             }
         ]
@@ -1318,10 +1342,12 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'OPERAND1'
             },
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'OPERAND2'
             }
         ]
@@ -1331,10 +1357,12 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'OPERAND1'
             },
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'OPERAND2'
             }
         ]
@@ -1344,6 +1372,7 @@ const specMap = {
         argMap: [
             {
                 type: 'input',
+                inputOp: 'boolean',
                 inputName: 'OPERAND'
             }
         ]

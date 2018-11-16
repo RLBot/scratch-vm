@@ -34,9 +34,14 @@ const ArgumentType = {
     VECTOR3: 'Vector3',
 
     /**
-     * String value with matirx field
+     * String value with matrix field
      */
-    MATRIX: 'matrix'
+    MATRIX: 'matrix',
+
+    /**
+     * MIDI note number with note picker (piano) field
+     */
+    NOTE: 'note'
 };
 
 module.exports = ArgumentType;
