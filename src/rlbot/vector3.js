@@ -30,7 +30,7 @@ class Vector3 {
     }
 
     toString () {
-        return `(${this.x.toFixed()}, ${this.y.toFixed()}, ${this.z.toFixed()})`;
+        return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)}, ${this.z.toFixed(2)})`;
     }
 
     static fromString (str) {
