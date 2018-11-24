@@ -27,6 +27,7 @@ class Scratch3MotionBlocks {
             motion_sethandbrake: this.setHandbrake,
             motion_movesteps: this.moveSteps,
             motion_gotoxy: this.goToXY,
+            motion_gotovector: this.goToVector,
             motion_goto: this.goTo,
             motion_turnright: this.turnRight,
             motion_turnleft: this.turnLeft,
@@ -127,6 +128,11 @@ class Scratch3MotionBlocks {
         const x = Cast.toNumber(args.X);
         const y = Cast.toNumber(args.Y);
         util.target.setXY(x, y);
+    }
+
+    goToVector (args, util) {
+        util.target.setXY(args.VEC.x, args.VEC.y);
+        util.target.setZ(args.VEC.z);
     }
 
     getTargetXY (targetName, util) {

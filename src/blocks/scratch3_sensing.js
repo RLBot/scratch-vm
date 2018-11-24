@@ -187,7 +187,7 @@ class Scratch3SensingBlocks {
                 return this.runtime.rlbotManager.getBallLocation();
             }
         }
-        return new Vector3();
+        return new Vector3(target.x, target.y, target.z);
     }
 
     rlbotVelocity (args, util) {

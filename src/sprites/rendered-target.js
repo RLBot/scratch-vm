@@ -102,6 +102,11 @@ class RenderedTarget extends Target {
         this.y = 0;
 
         /**
+         * Z coordinate that can be stored for rlbot purposes.
+         */
+        this.z = 0;
+
+        /**
          * Scratch direction. Currently should range from -179 to 180.
          * @type {number}
          */
@@ -305,6 +310,10 @@ class RenderedTarget extends Target {
         }
         this.emit(RenderedTarget.EVENT_TARGET_MOVED, this, oldX, oldY, force);
         this.runtime.requestTargetsUpdate(this);
+    }
+
+    setZ (z) {
+        this.z = z;
     }
 
     /**

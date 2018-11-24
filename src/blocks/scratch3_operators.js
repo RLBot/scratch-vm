@@ -23,6 +23,7 @@ class Scratch3OperatorsBlocks {
             operator_vec_normalized: this.vecNormalized,
             operator_vec_scaled: this.vecScaled,
             operator_vec_constructor: this.vecConstructor,
+            operator_vec_fromstring: this.vecFromString,
             operator_vec_xval: this.vecX,
             operator_vec_yval: this.vecY,
             operator_vec_zval: this.vecZ,
@@ -73,6 +74,10 @@ class Scratch3OperatorsBlocks {
             Cast.toNumber(args.NUM2),
             Cast.toNumber(args.NUM3)
         )
+    }
+
+    vecFromString (args) {
+        return Vector3.fromString('' + args.STRING) || new Vector3();
     }
 
     vecX (args) {

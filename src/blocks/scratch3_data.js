@@ -1,4 +1,5 @@
 const Cast = require('../util/cast');
+const Vector3 = require('../rlbot/vector3')
 
 class Scratch3DataBlocks {
     constructor (runtime) {
@@ -44,7 +45,12 @@ class Scratch3DataBlocks {
     setVariableTo (args, util) {
         const variable = util.target.lookupOrCreateVariable(
             args.VARIABLE.id, args.VARIABLE.name);
-        variable.value = args.VALUE;
+
+        if (args.VALUE instanceof Vector3) {
+            variable.value = args.VALUE.toString();
+        } else {
+            variable.value = args.VALUE;
+        }
 
         if (variable.isCloud) {
             util.ioQuery('cloud', 'requestUpdateVariable', [variable.name, args.VALUE]);

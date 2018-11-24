@@ -32,6 +32,26 @@ class Vector3 {
     toString () {
         return `(${this.x.toFixed()}, ${this.y.toFixed()}, ${this.z.toFixed()})`;
     }
+
+    static fromString (str) {
+        if (str.length < 9) {
+            return null;  // Must be at least (0, 0, 0)
+        }
+        const numList = str.substring(1, str.length - 1).split(', ');
+        if (numList.length != 3) {
+            return null;
+        }
+
+        const x = Number.parseFloat(numList[0]);
+        const y = Number.parseFloat(numList[1]);
+        const z = Number.parseFloat(numList[2]);
+
+        if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(z)) {
+            return null;
+        }
+
+        return new Vector3(x, y, z);
+    }
 }
 
 module.exports = Vector3;
