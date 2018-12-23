@@ -71,8 +71,9 @@ class Scratch3MotionBlocks {
     }
 
     setControllerFloat (args, util, propertyName) {
-        const val = Cast.toNumber(args.NUM);
         if (util.target.rlbotType === 'car') {
+            const num = Cast.toNumber(args.NUM);
+            const val = Math.max(-1, Math.min(1, num)); // Clamp between -1 and 1
             this.runtime.rlbotManager.updateControllerState(util.target.rlbotIndex, propertyName, val);
         }
     }
