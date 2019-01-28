@@ -152,6 +152,7 @@ class Scratch3SensingBlocks {
         ));
 
         if (currentlyAsking) {
+            this.runtime.emit('SAY', stopTarget, 'say', '');
             if (this._questionList.length > 0) {
                 this._askNextQuestion();
             } else {
@@ -433,12 +434,11 @@ class Scratch3SensingBlocks {
             }
         }
 
-        // Variables
+        // Target variables.
         const varName = args.PROPERTY;
-        for (const id in attrTarget.variables) {
-            if (attrTarget.variables[id].name === varName) {
-                return attrTarget.variables[id].value;
-            }
+        const variable = attrTarget.lookupVariableByNameAndType(varName, '', true);
+        if (variable) {
+            return variable.value;
         }
 
         // Otherwise, 0
