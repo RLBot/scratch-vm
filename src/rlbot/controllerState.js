@@ -8,6 +8,7 @@ class ControllerState {
         this.jump = false;
         this.boost = false;
         this.handbrake = false;
+        this.useItem = false;
     }
 
     reset () {
@@ -19,6 +20,7 @@ class ControllerState {
         this.jump = false;
         this.boost = false;
         this.handbrake = false;
+        this.useItem = false;
     }
 }
 
