@@ -25,6 +25,7 @@ class Scratch3MotionBlocks {
             motion_setjump: this.setJump,
             motion_setboost: this.setBoost,
             motion_sethandbrake: this.setHandbrake,
+            motion_setuseitem: this.setUseItem,
             motion_movesteps: this.moveSteps,
             motion_gotoxy: this.goToXY,
             motion_gotovector: this.goToVector,
@@ -115,6 +116,10 @@ class Scratch3MotionBlocks {
 
     setHandbrake (args, util) {
         this.setControllerBoolean(args, util, 'handbrake');
+    }
+
+    setUseItem (args, util) {
+        this.setControllerBoolean(args, util, 'useItem');
     }
 
     moveSteps (args, util) {
