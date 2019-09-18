@@ -265,6 +265,14 @@ class RLBotManager extends EventEmitter {
         }
         return 0;
     }
+
+    saveProject(content) {
+        if (this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(content);
+            return true;
+        }
+        return false;
+    }
 }
 
 module.exports = RLBotManager;
