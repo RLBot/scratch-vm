@@ -14,6 +14,8 @@ const StageLayering = require('../engine/stage-layering');
 const log = require('../util/log');
 const uid = require('../util/uid');
 const MathUtil = require('../util/math-util');
+const StringUtil = require('../util/string-util');
+const VariableUtil = require('../util/variable-util');
 
 const {loadCostume} = require('../import/load-costume.js');
 const {loadSound} = require('../import/load-sound.js');
@@ -271,13 +273,17 @@ const compressInputTree = function (block, blocks) {
 };
 
 /**
- * Get non-core extension ID for a given sb3 opcode.
+ * Get sanitized non-core extension ID for a given sb3 opcode.
+ * Note that this should never return a URL. If in the future the SB3 loader supports loading extensions by URL, this
+ * ID should be used to (for example) look up the extension's full URL from a table in the SB3's JSON.
  * @param {!string} opcode The opcode to examine for extension.
  * @return {?string} The extension ID, if it exists and is not a core extension.
  */
 const getExtensionIdForOpcode = function (opcode) {
+    // Allowed ID characters are those matching the regular expression [\w-]: A-Z, a-z, 0-9, and hyphen ("-").
     const index = opcode.indexOf('_');
-    const prefix = opcode.substring(0, index);
+    const forbiddenSymbols = /[^\w-]/g;
+    const prefix = opcode.substring(0, index).replace(forbiddenSymbols, '-');
     if (CORE_EXTENSIONS.indexOf(prefix) === -1) {
         if (prefix !== '') return prefix;
     }
@@ -504,8 +510,9 @@ const serializeMonitors = function (monitors) {
             visible: monitorData.visible
         };
         if (monitorData.mode !== 'list') {
-            serializedMonitor.min = monitorData.sliderMin;
-            serializedMonitor.max = monitorData.sliderMax;
+            serializedMonitor.sliderMin = monitorData.sliderMin;
+            serializedMonitor.sliderMax = monitorData.sliderMax;
+            serializedMonitor.isDiscrete = monitorData.isDiscrete;
         }
         return serializedMonitor;
     });
@@ -558,7 +565,7 @@ const serialize = function (runtime, targetId) {
     meta.vm = vmPackage.version;
 
     // Attach full user agent string to metadata if available
-    meta.agent = null;
+    meta.agent = 'none';
     if (typeof navigator !== 'undefined') meta.agent = navigator.userAgent;
 
     // Assemble payload and return
@@ -822,46 +829,32 @@ const deserializeBlocks = function (blocks) {
 
 
 /**
- * Parse a single "Scratch object" and create all its in-memory VM objects.
+ * Parse the assets of a single "Scratch object" and load them. This
+ * preprocesses objects to support loading the data for those assets over a
+ * network while the objects are further processed into Blocks, Sprites, and a
+ * list of needed Extensions.
  * @param {!object} object From-JSON "Scratch object:" sprite, stage, watcher.
  * @param {!Runtime} runtime Runtime object to load all structures into.
- * @param {ImportedExtensionsInfo} extensions - (in/out) parsed extension information will be stored here.
  * @param {JSZip} zip Sb3 file describing this project (to load assets from)
- * @return {!Promise.<Target>} Promise for the target created (stage or sprite), or null for unsupported objects.
+ * @return {?{costumePromises:Array.<Promise>,soundPromises:Array.<Promise>,soundBank:SoundBank}}
+ * Object of arrays of promises for asset objects used in Sprites. As well as a
+ * SoundBank for the sound assets. null for unsupported objects.
  */
-const parseScratchObject = function (object, runtime, extensions, zip) {
+const parseScratchAssets = function (object, runtime, zip) {
     if (!object.hasOwnProperty('name')) {
         // Watcher/monitor - skip this object until those are implemented in VM.
         // @todo
         return Promise.resolve(null);
     }
-    // Blocks container for this object.
-    const blocks = new Blocks();
 
-    // @todo: For now, load all Scratch objects (stage/sprites) as a Sprite.
-    const sprite = new Sprite(blocks, runtime);
+    const assets = {
+        costumePromises: null,
+        soundPromises: null,
+        soundBank: runtime.audioEngine && runtime.audioEngine.createBank()
+    };
 
-    // Sprite/stage name from JSON.
-    if (object.hasOwnProperty('name')) {
-        sprite.name = object.name;
-    }
-    if (object.hasOwnProperty('blocks')) {
-        deserializeBlocks(object.blocks);
-        // Take a second pass to create objects and add extensions
-        for (const blockId in object.blocks) {
-            if (!object.blocks.hasOwnProperty(blockId)) continue;
-            const blockJSON = object.blocks[blockId];
-            blocks.createBlock(blockJSON);
-
-            // If the block is from an extension, record it.
-            const extensionID = getExtensionIdForOpcode(blockJSON.opcode);
-            if (extensionID) {
-                extensions.extensionIDs.add(extensionID);
-            }
-        }
-    }
     // Costumes from JSON.
-    const costumePromises = (object.costumes || []).map(costumeSource => {
+    assets.costumePromises = (object.costumes || []).map(costumeSource => {
         // @todo: Make sure all the relevant metadata is being pulled out.
         const costume = {
             // costumeSource only has an asset if an image is being uploaded as
@@ -893,7 +886,7 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
         // process has been completed
     });
     // Sounds from JSON
-    const soundPromises = (object.sounds || []).map(soundSource => {
+    assets.soundPromises = (object.sounds || []).map(soundSource => {
         const sound = {
             assetId: soundSource.assetId,
             format: soundSource.format,
@@ -913,10 +906,59 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
         // any translation that needs to happen will happen in the process
         // of building up the costume object into an sb3 format
         return deserializeSound(sound, runtime, zip)
-            .then(() => loadSound(sound, runtime, sprite));
+            .then(() => loadSound(sound, runtime, assets.soundBank));
         // Only attempt to load the sound after the deserialization
         // process has been completed.
     });
+
+    return assets;
+};
+
+/**
+ * Parse a single "Scratch object" and create all its in-memory VM objects.
+ * @param {!object} object From-JSON "Scratch object:" sprite, stage, watcher.
+ * @param {!Runtime} runtime Runtime object to load all structures into.
+ * @param {ImportedExtensionsInfo} extensions - (in/out) parsed extension information will be stored here.
+ * @param {JSZip} zip Sb3 file describing this project (to load assets from)
+ * @param {object} assets - Promises for assets of this scratch object grouped
+ *   into costumes and sounds
+ * @return {!Promise.<Target>} Promise for the target created (stage or sprite), or null for unsupported objects.
+ */
+const parseScratchObject = function (object, runtime, extensions, zip, assets) {
+    if (!object.hasOwnProperty('name')) {
+        // Watcher/monitor - skip this object until those are implemented in VM.
+        // @todo
+        return Promise.resolve(null);
+    }
+    // Blocks container for this object.
+    const blocks = new Blocks(runtime);
+
+    // @todo: For now, load all Scratch objects (stage/sprites) as a Sprite.
+    const sprite = new Sprite(blocks, runtime);
+
+    // Sprite/stage name from JSON.
+    if (object.hasOwnProperty('name')) {
+        sprite.name = object.name;
+    }
+    if (object.hasOwnProperty('blocks')) {
+        deserializeBlocks(object.blocks);
+        // Take a second pass to create objects and add extensions
+        for (const blockId in object.blocks) {
+            if (!object.blocks.hasOwnProperty(blockId)) continue;
+            const blockJSON = object.blocks[blockId];
+            blocks.createBlock(blockJSON);
+
+            // If the block is from an extension, record it.
+            const extensionID = getExtensionIdForOpcode(blockJSON.opcode);
+            if (extensionID) {
+                extensions.extensionIDs.add(extensionID);
+            }
+        }
+    }
+    // Costumes from JSON.
+    const {costumePromises} = assets;
+    // Sounds from JSON
+    const {soundBank, soundPromises} = assets;
     // Create the first clone, and load its run-state from JSON.
     const target = sprite.createClone(object.isStage ? StageLayering.BACKGROUND_LAYER : StageLayering.SPRITE_LAYER);
     // Load target properties from JSON.
@@ -1044,6 +1086,8 @@ const parseScratchObject = function (object, runtime, extensions, zip) {
     });
     Promise.all(soundPromises).then(sounds => {
         sprite.sounds = sounds;
+        // Make sure if soundBank is undefined, sprite.soundBank is then null.
+        sprite.soundBank = soundBank || null;
     });
     return Promise.all(costumePromises.concat(soundPromises)).then(() => target);
 };
@@ -1066,6 +1110,20 @@ const deserializeMonitor = function (monitorData, runtime, targets, extensions) 
     // This will be undefined for extension blocks
     const monitorBlockInfo = runtime.monitorBlockInfo[monitorData.opcode];
 
+    // Due to a bug (see https://github.com/LLK/scratch-vm/pull/2322), renamed list monitors may have been serialized
+    // with an outdated/incorrect LIST parameter. Fix it up to use the current name of the actual corresponding list.
+    if (monitorData.opcode === 'data_listcontents') {
+        const listTarget = monitorData.targetId ?
+            targets.find(t => t.id === monitorData.targetId) :
+            targets.find(t => t.isStage);
+        if (
+            listTarget &&
+            Object.prototype.hasOwnProperty.call(listTarget.variables, monitorData.id)
+        ) {
+            monitorData.params.LIST = listTarget.variables[monitorData.id].name;
+        }
+    }
+
     // Convert the serialized monitorData params into the block fields structure
     const fields = {};
     for (const paramKey in monitorData.params) {
@@ -1083,6 +1141,12 @@ const deserializeMonitor = function (monitorData, runtime, targets, extensions) 
         monitorBlockInfo && monitorBlockInfo.isSpriteSpecific) {
         monitorData.id = monitorBlockInfo.getId(
             monitorData.targetId, fields);
+    } else {
+        // Replace unsafe characters in monitor ID, if there are any.
+        // These would have come from projects that were originally 2.0 projects
+        // that had unsafe characters in the variable name (and then the name was
+        // used as part of the variable ID when importing the project).
+        monitorData.id = StringUtil.replaceUnsafeChars(monitorData.id);
     }
 
     // If the runtime already has a monitor block for this monitor's id,
@@ -1136,6 +1200,35 @@ const deserializeMonitor = function (monitorData, runtime, targets, extensions) 
     runtime.requestAddMonitor(MonitorRecord(monitorData));
 };
 
+// Replace variable IDs throughout the project with
+// xml-safe versions.
+// This is to fix up projects imported from 2.0 where xml-unsafe names
+// were getting added to the variable ids.
+const replaceUnsafeCharsInVariableIds = function (targets) {
+    const allVarRefs = VariableUtil.getAllVarRefsForTargets(targets, true);
+    // Re-id the variables in the actual targets
+    targets.forEach(t => {
+        Object.keys(t.variables).forEach(id => {
+            const newId = StringUtil.replaceUnsafeChars(id);
+            if (newId === id) return;
+            t.variables[id].id = newId;
+            t.variables[newId] = t.variables[id];
+            delete t.variables[id];
+        });
+    });
+
+    // Replace the IDs in the blocks refrencing variables or lists
+    for (const id in allVarRefs) {
+        const newId = StringUtil.replaceUnsafeChars(id);
+        if (id === newId) continue; // ID was already safe, skip
+        // We're calling this on the stage target because we need a
+        // target to call on but this shouldn't matter because we're passing
+        // in all the varRefs we want to operate on
+        VariableUtil.updateVariableIdentifiers(allVarRefs[id], newId);
+    }
+    return targets;
+};
+
 /**
  * Deserialize the specified representation of a VM runtime and loads it into the provided runtime instance.
  * @param  {object} json - JSON representation of a VM runtime.
@@ -1160,10 +1253,16 @@ const deserialize = function (json, runtime, zip, isSingleSprite) {
 
     const monitorObjects = json.monitors || [];
 
-    return Promise.all(
+    return Promise.resolve(
         targetObjects.map(target =>
-            parseScratchObject(target, runtime, extensions, zip))
+            parseScratchAssets(target, runtime, zip))
     )
+        // Force this promise to wait for the next loop in the js tick. Let
+        // storage have some time to send off asset requests.
+        .then(assets => Promise.resolve(assets))
+        .then(assets => Promise.all(targetObjects
+            .map((target, index) =>
+                parseScratchObject(target, runtime, extensions, zip, assets[index]))))
         .then(targets => targets // Re-sort targets back into original sprite-pane ordering
             .map((t, i) => {
                 // Add layer order property to deserialized targets.
@@ -1179,6 +1278,7 @@ const deserialize = function (json, runtime, zip, isSingleSprite) {
                 delete t.targetPaneOrder;
                 return t;
             }))
+        .then(targets => replaceUnsafeCharsInVariableIds(targets))
         .then(targets => {
             monitorObjects.map(monitorDesc => deserializeMonitor(monitorDesc, runtime, targets, extensions));
             return targets;

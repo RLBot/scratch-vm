@@ -175,7 +175,11 @@ class Scratch3MakeyMakeyBlocks {
             blocks: [
                 {
                     opcode: 'whenMakeyKeyPressed',
-                    text: 'when [KEY] key pressed',
+                    text: formatMessage({
+                        id: 'makeymakey.whenKeyPressed',
+                        default: 'when [KEY] key pressed',
+                        description: 'when a keyboard key is pressed'
+                    }),
                     blockType: BlockType.HAT,
                     arguments: {
                         KEY: {
@@ -187,7 +191,11 @@ class Scratch3MakeyMakeyBlocks {
                 },
                 {
                     opcode: 'whenCodePressed',
-                    text: 'when [SEQUENCE] pressed in order',
+                    text: formatMessage({
+                        id: 'makeymakey.whenKeysPressedInOrder',
+                        default: 'when [SEQUENCE] pressed in order',
+                        description: 'when a sequence of keyboard keys is pressed in a specific order'
+                    }),
                     blockType: BlockType.HAT,
                     arguments: {
                         SEQUENCE: {
@@ -199,55 +207,61 @@ class Scratch3MakeyMakeyBlocks {
                 }
             ],
             menus: {
-                KEY: [
-                    {
-                        text: formatMessage({
-                            id: 'makeymakey.spaceKey',
-                            default: 'space',
-                            description: 'The space key on a computer keyboard.'
-                        }),
-                        value: KEY_ID_SPACE
-                    },
-                    {
-                        text: formatMessage({
-                            id: 'makeymakey.upArrow',
-                            default: 'up arrow',
-                            description: 'The up arrow key on a computer keyboard.'
-                        }),
-                        value: KEY_ID_UP
-                    },
-                    {
-                        text: formatMessage({
-                            id: 'makeymakey.downArrow',
-                            default: 'down arrow',
-                            description: 'The down arrow key on a computer keyboard.'
-                        }),
-                        value: KEY_ID_DOWN
-                    },
-                    {
-                        text: formatMessage({
-                            id: 'makeymakey.rightArrow',
-                            default: 'right arrow',
-                            description: 'The right arrow key on a computer keyboard.'
-                        }),
-                        value: KEY_ID_RIGHT
-                    },
-                    {
-                        text: formatMessage({
-                            id: 'makeymakey.leftArrow',
-                            default: 'left arrow',
-                            description: 'The left arrow key on a computer keyboard.'
-                        }),
-                        value: KEY_ID_LEFT
-                    },
-                    {text: 'w', value: 'w'},
-                    {text: 'a', value: 'a'},
-                    {text: 's', value: 's'},
-                    {text: 'd', value: 'd'},
-                    {text: 'f', value: 'f'},
-                    {text: 'g', value: 'g'}
-                ],
-                SEQUENCE: this.buildSequenceMenu(this.DEFAULT_SEQUENCES)
+                KEY: {
+                    acceptReporters: true,
+                    items: [
+                        {
+                            text: formatMessage({
+                                id: 'makeymakey.spaceKey',
+                                default: 'space',
+                                description: 'The space key on a computer keyboard.'
+                            }),
+                            value: KEY_ID_SPACE
+                        },
+                        {
+                            text: formatMessage({
+                                id: 'makeymakey.upArrow',
+                                default: 'up arrow',
+                                description: 'The up arrow key on a computer keyboard.'
+                            }),
+                            value: KEY_ID_UP
+                        },
+                        {
+                            text: formatMessage({
+                                id: 'makeymakey.downArrow',
+                                default: 'down arrow',
+                                description: 'The down arrow key on a computer keyboard.'
+                            }),
+                            value: KEY_ID_DOWN
+                        },
+                        {
+                            text: formatMessage({
+                                id: 'makeymakey.rightArrow',
+                                default: 'right arrow',
+                                description: 'The right arrow key on a computer keyboard.'
+                            }),
+                            value: KEY_ID_RIGHT
+                        },
+                        {
+                            text: formatMessage({
+                                id: 'makeymakey.leftArrow',
+                                default: 'left arrow',
+                                description: 'The left arrow key on a computer keyboard.'
+                            }),
+                            value: KEY_ID_LEFT
+                        },
+                        {text: 'w', value: 'w'},
+                        {text: 'a', value: 'a'},
+                        {text: 's', value: 's'},
+                        {text: 'd', value: 'd'},
+                        {text: 'f', value: 'f'},
+                        {text: 'g', value: 'g'}
+                    ]
+                },
+                SEQUENCE: {
+                    acceptReporters: true,
+                    items: this.buildSequenceMenu(this.DEFAULT_SEQUENCES)
+                }
             }
         };
     }

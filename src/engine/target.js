@@ -7,6 +7,7 @@ const uid = require('../util/uid');
 const {Map} = require('immutable');
 const log = require('../util/log');
 const StringUtil = require('../util/string-util');
+const VariableUtil = require('../util/variable-util');
 
 /**
  * @fileoverview
@@ -25,7 +26,7 @@ class Target extends EventEmitter {
         super();
 
         if (!blocks) {
-            blocks = new Blocks();
+            blocks = new Blocks(runtime);
         }
 
         /**
@@ -321,11 +322,26 @@ class Target extends EventEmitter {
                         this.runtime.ioDevices.cloud.requestRenameVariable(oldName, newName);
                     }
 
+                    if (variable.type === Variable.SCALAR_TYPE) {
+                        // sensing__of may be referencing to this variable.
+                        // Change the reference.
+                        let blockUpdated = false;
+                        this.runtime.targets.forEach(t => {
+                            blockUpdated = t.blocks.updateSensingOfReference(
+                                oldName,
+                                newName,
+                                this.isStage ? '_stage_' : this.getName()
+                            ) || blockUpdated;
+                        });
+                        // Request workspace change only if sensing_of blocks were actually updated.
+                        if (blockUpdated) this.runtime.requestBlocksUpdate();
+                    }
+
                     const blocks = this.runtime.monitorBlocks;
                     blocks.changeBlock({
                         id: id,
                         element: 'field',
-                        name: 'VARIABLE',
+                        name: variable.type === Variable.LIST_TYPE ? 'LIST' : 'VARIABLE',
                         value: id
                     }, this.runtime);
                     const monitorBlock = blocks.getBlock(variable.id);
@@ -514,13 +530,7 @@ class Target extends EventEmitter {
             // for all references for a given ID instead of doing the below..?
             this.blocks.getAllVariableAndListReferences()[idToBeMerged];
 
-        referencesToChange.map(ref => {
-            ref.referencingField.id = idToMergeWith;
-            if (optNewName) {
-                ref.referencingField.value = optNewName;
-            }
-            return ref;
-        });
+        VariableUtil.updateVariableIdentifiers(referencesToChange, idToMergeWith, optNewName);
     }
 
     /**

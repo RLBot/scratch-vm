@@ -153,11 +153,28 @@ test('ask and answer with a visible target', t => {
     s.askAndWait({QUESTION: expectedQuestion}, util);
 });
 
+test('answer gets reset when runtime is disposed', t => {
+    const rt = new Runtime();
+    const s = new Sensing(rt);
+    const util = {target: {visible: false}};
+    const expectedAnswer = 'the answer';
+
+    rt.addListener('QUESTION', () => rt.emit('ANSWER', expectedAnswer));
+    const promise = s.askAndWait({QUESTION: ''}, util);
+
+    promise.then(() => t.strictEqual(s.getAnswer(), expectedAnswer))
+        .then(() => rt.dispose())
+        .then(() => {
+            t.strictEqual(s.getAnswer(), '');
+            t.end();
+        });
+});
+
 test('set drag mode', t => {
     const runtime = new Runtime();
     runtime.requestTargetsUpdate = () => {}; // noop for testing
     const sensing = new Sensing(runtime);
-    const s = new Sprite();
+    const s = new Sprite(null, runtime);
     const rt = new RenderedTarget(s, runtime);
 
     sensing.setDragMode({DRAG_MODE: 'not draggable'}, {target: rt});
@@ -232,7 +249,7 @@ test('loud? boolean', t => {
 test('get attribute of sprite variable', t => {
     const rt = new Runtime();
     const sensing = new Sensing(rt);
-    const s = new Sprite();
+    const s = new Sprite(null, rt);
     const target = new RenderedTarget(s, rt);
     const variable = {
         name: 'cars',
@@ -249,7 +266,7 @@ test('get attribute of sprite variable', t => {
 test('get attribute of variable that does not exist', t => {
     const rt = new Runtime();
     const sensing = new Sensing(rt);
-    const s = new Sprite();
+    const s = new Sprite(null, rt);
     const target = new RenderedTarget(s, rt);
     rt.getTargetForStage = () => target;
     t.equal(sensing.getAttributeOf({PROPERTY: 'variableThatDoesNotExist'}), 0);
